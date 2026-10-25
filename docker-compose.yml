@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      - DEBUG=False
+      - DATABASE_URL=postgresql://edutrack_user:edutrack_pass@postgres:5432/edutrack_db
+      - SECRET_KEY=production-secure-random-secret-key-change-me
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: edutrack_user
+      POSTGRES_PASSWORD: edutrack_pass
+      POSTGRES_DB: edutrack_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

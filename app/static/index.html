@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTrack Enterprise — Student Information & Academic Management</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-logo">
+          <div class="logo-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
+          </div>
+          <div class="logo-title">
+            <h2>EduTrack</h2>
+            <span class="badge-enterprise">Enterprise</span>
+          </div>
+        </div>
+        <button class="mobile-close-btn" id="mobileCloseBtn">✕</button>
+      </div>
+
+      <div class="sidebar-user-card">
+        <div class="user-avatar" id="sidebarUserAvatar">AD</div>
+        <div class="user-info">
+          <span class="user-name" id="sidebarUserName">System Admin</span>
+          <span class="user-role" id="sidebarUserRole">Administrator</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">CORE ACADEMICS</div>
+        <button class="nav-item active" data-tab="dashboard" id="navDashboard">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-tab="students" id="navStudents">
+          <span class="nav-icon">🎓</span>
+          <span>Students Directory</span>
+          <span class="badge-count" id="navStudentBadge">0</span>
+        </button>
+        <button class="nav-item" data-tab="admissions" id="navAdmissions">
+          <span class="nav-icon">📝</span>
+          <span>Student Admission</span>
+        </button>
+        <button class="nav-item" data-tab="departments" id="navDepartments">
+          <span class="nav-icon">🏛️</span>
+          <span>Departments & Faculty</span>
+        </button>
+        <button class="nav-item" data-tab="courses" id="navCourses">
+          <span class="nav-icon">📚</span>
+          <span>Courses & Curriculum</span>
+        </button>
+
+        <div class="nav-section-label">OPERATIONS & GRADES</div>
+        <button class="nav-item" data-tab="attendance" id="navAttendance">
+          <span class="nav-icon">📅</span>
+          <span>Attendance Marking</span>
+        </button>
+        <button class="nav-item" data-tab="grades" id="navGrades">
+          <span class="nav-icon">🎯</span>
+          <span>Exams & Grades</span>
+        </button>
+        <button class="nav-item" data-tab="fees" id="navFees">
+          <span class="nav-icon">💳</span>
+          <span>Fee Ledger</span>
+        </button>
+        <button class="nav-item" data-tab="timetable" id="navTimetable">
+          <span class="nav-icon">🕒</span>
+          <span>Timetable & Scheduling</span>
+        </button>
+
+        <div class="nav-section-label">SYSTEM & INSIGHTS</div>
+        <button class="nav-item" data-tab="reports" id="navReports">
+          <span class="nav-icon">📈</span>
+          <span>Analytics & Reports</span>
+        </button>
+        <button class="nav-item" data-tab="audit" id="navAudit">
+          <span class="nav-icon">📜</span>
+          <span>Audit Logs</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="db-status-pill">
+          <span class="status-dot"></span>
+          <span>FastAPI & SQLite / Postgres</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Application Viewport -->
+    <main class="main-wrapper">
+      <!-- Top Navigation Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-toggle-btn" id="mobileToggleBtn">☰</button>
+          <div class="global-search-container">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearchInput" placeholder="Quick search by student name, register #, or email (Press / to focus)..." autocomplete="off" />
+            <button class="search-clear-btn" id="searchClearBtn" style="display: none;">✕</button>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <button class="btn btn-secondary" id="quickSeedBtn" title="Load synthetic demonstration data">
+            <span>⚡ Seed Demo Data</span>
+          </button>
+          <button class="btn btn-primary" id="topAddStudentBtn">
+            <span>+ New Student</span>
+          </button>
+          <div class="profile-chip">
+            <span class="profile-avatar">AD</span>
+            <span class="profile-label">Admin</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- View Container -->
+      <div class="content-container">
+
+        <!-- 1. DASHBOARD VIEW -->
+        <section class="tab-view active" id="view-dashboard">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">University Administration Dashboard</h1>
+              <p class="view-subtitle">Real-time institutional performance metrics, admissions trends, and fee collection overview</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-outline" onclick="app.refreshDashboard()">🔄 Refresh Metrics</button>
+              <button class="btn btn-secondary" onclick="app.exportStudentsCSV()">📥 Export Student Roster</button>
+            </div>
+          </div>
+
+          <!-- KPI Cards Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon blue">🎓</div>
+              <div class="kpi-data">
+                <span class="kpi-label">TOTAL STUDENTS</span>
+                <h3 class="kpi-value" id="kpiTotalStudents">0</h3>
+                <span class="kpi-trend positive" id="kpiActiveStudents">0 Active Students</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon purple">📚</div>
+              <div class="kpi-data">
+                <span class="kpi-label">ACADEMIC OFFERINGS</span>
+                <h3 class="kpi-value" id="kpiTotalCourses">0</h3>
+                <span class="kpi-trend neutral" id="kpiTotalFaculty">0 Faculty Assigned</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon green">📅</div>
+              <div class="kpi-data">
+                <span class="kpi-label">AVERAGE ATTENDANCE</span>
+                <h3 class="kpi-value" id="kpiAttendanceRate">0.0%</h3>
+                <span class="kpi-trend positive">Threshold: 75% Min</span>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon amber">💳</div>
+              <div class="kpi-data">
+                <span class="kpi-label">FEES COLLECTED</span>
+                <h3 class="kpi-value" id="kpiFeesCollected">$0.00</h3>
+                <span class="kpi-trend alert" id="kpiFeesOutstanding">Outstanding: $0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="charts-grid">
+            <div class="chart-card">
+              <div class="card-header">
+                <h3>Students Distribution by Department</h3>
+                <span class="badge">Real-time</span>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="deptChart"></canvas>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="card-header">
+                <h3>Grade Performance Distribution</h3>
+                <span class="badge">Exams</span>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="gradeChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Admissions Quick Table -->
+          <div class="card mt-4">
+            <div class="card-header">
+              <h3>Recently Admitted Students</h3>
+              <button class="btn btn-sm btn-outline" onclick="app.switchTab('students')">View Full Directory →</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table" id="dashboardRecentTable">
+                <thead>
+                  <tr>
+                    <th>Register Number</th>
+                    <th>Full Name</th>
+                    <th>Department</th>
+                    <th>Academic Year</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardRecentBody">
+                  <tr><td colspan="6" class="text-center py-4 text-muted">Loading records...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. STUDENTS DIRECTORY VIEW -->
+        <section class="tab-view" id="view-students">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Student Records Directory</h1>
+              <p class="view-subtitle">Search, filter, inspect dossiers, and manage student lifecycle statuses</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-outline" onclick="app.exportStudentsCSV()">📥 Export CSV</button>
+              <button class="btn btn-primary" onclick="app.openAddStudentModal()">+ Add New Student</button>
+              <button class="btn btn-secondary" onclick="app.switchTab('admissions')">📋 3-Step Wizard</button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Toolbar -->
+          <div class="filter-toolbar card">
+            <div class="filter-group">
+              <label>Search Query</label>
+              <input type="text" id="dirSearchInput" placeholder="Name, Register #, Email..." class="form-control" />
+            </div>
+            <div class="filter-group">
+              <label>Department</label>
+              <select id="dirDeptFilter" class="form-control">
+                <option value="">All Departments</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics & Communication">Electronics & Communication</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>Academic Year</label>
+              <select id="dirYearFilter" class="form-control">
+                <option value="">All Academic Years</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>Status</label>
+              <select id="dirStatusFilter" class="form-control">
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="applicant">Applicant</option>
+                <option value="suspended">Suspended</option>
+                <option value="graduated">Graduated</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </div>
+            <div class="filter-actions">
+              <button class="btn btn-secondary" id="dirResetBtn">Reset Filters</button>
+            </div>
+          </div>
+
+          <!-- Student Records Table -->
+          <div class="card mt-4">
+            <div class="table-responsive">
+              <table class="data-table" id="studentsMainTable">
+                <thead>
+                  <tr>
+                    <th>Register #</th>
+                    <th>Student Name</th>
+                    <th>Email Address</th>
+                    <th>Phone</th>
+                    <th>Department</th>
+                    <th>Year / Sem</th>
+                    <th>Status</th>
+                    <th>GPA</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="studentsTableBody">
+                  <tr><td colspan="9" class="text-center py-4 text-muted">No students loaded.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination-bar">
+              <span id="paginationInfo">Showing 0 of 0 students</span>
+              <div class="pagination-controls">
+                <button class="btn btn-sm btn-outline" id="prevPageBtn" disabled>Previous</button>
+                <span id="pageIndicator" class="px-2 font-medium">Page 1</span>
+                <button class="btn btn-sm btn-outline" id="nextPageBtn" disabled>Next</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. STUDENT ADMISSION VIEW (MULTI-STEP FORM) -->
+        <section class="tab-view" id="view-admissions">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">New Student Admission</h1>
+              <p class="view-subtitle">Complete institutional enrollment with duplicate detection and eligibility verification</p>
+            </div>
+          </div>
+
+          <div class="card form-container">
+            <!-- Multi-step Indicator -->
+            <div class="step-indicator">
+              <div class="step active" id="stepIndicator1">
+                <span class="step-num">1</span>
+                <span class="step-title">Personal Identity</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step" id="stepIndicator2">
+                <span class="step-num">2</span>
+                <span class="step-title">Academic Assignment</span>
+              </div>
+              <div class="step-line"></div>
+              <div class="step" id="stepIndicator3">
+                <span class="step-num">3</span>
+                <span class="step-title">Contact & Guardian</span>
+              </div>
+            </div>
+
+            <form id="admissionForm" novalidate>
+              <!-- Step 1: Personal Info -->
+              <div class="form-step active" id="formStep1">
+                <h3 class="form-section-heading">Step 1: Student Identity & Credentials</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="required">Full Legal Name</label>
+                    <input type="text" id="admFullName" class="form-control" required placeholder="e.g. Eleanor Vance" />
+                    <span class="field-error" id="errFullName"></span>
+                  </div>
+                  <div class="form-group">
+                    <label class="required">Registration / Roll Number</label>
+                    <div class="input-with-button">
+                      <input type="text" id="admRegNumber" class="form-control" required placeholder="e.g. CS2026001" />
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="app.autoGenRegNumber('admRegNumber')" title="Auto-generate registration number">⚡ Auto</button>
+                    </div>
+                    <span class="field-error" id="errRegNumber"></span>
+                  </div>
+                  <div class="form-group">
+                    <label>First Name</label>
+                    <input type="text" id="admFirstName" class="form-control" placeholder="Eleanor" />
+                  </div>
+                  <div class="form-group">
+                    <label>Last Name</label>
+                    <input type="text" id="admLastName" class="form-control" placeholder="Vance" />
+                  </div>
+                  <div class="form-group">
+                    <label>Date of Birth</label>
+                    <input type="date" id="admDob" class="form-control" />
+                  </div>
+                  <div class="form-group">
+                    <label>Gender</label>
+                    <select id="admGender" class="form-control">
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-step-actions">
+                  <div></div>
+                  <button type="button" class="btn btn-primary" onclick="app.validateStep1AndNext()">Next: Academic Details →</button>
+                </div>
+              </div>
+
+              <!-- Step 2: Academic Info -->
+              <div class="form-step" id="formStep2">
+                <h3 class="form-section-heading">Step 2: Department & Academic Enrollment</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="required">Department</label>
+                    <select id="admDepartment" class="form-control" required>
+                      <option value="Computer Science">Computer Science</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Electronics & Communication">Electronics & Communication</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="required">Academic Year</label>
+                    <select id="admAcademicYear" class="form-control" required>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="required">Current Semester</label>
+                    <select id="admSemester" class="form-control" required>
+                      <option value="1">Semester 1</option>
+                      <option value="2">Semester 2</option>
+                      <option value="3">Semester 3</option>
+                      <option value="4">Semester 4</option>
+                      <option value="5">Semester 5</option>
+                      <option value="6">Semester 6</option>
+                      <option value="7">Semester 7</option>
+                      <option value="8">Semester 8</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="required">Admission Status</label>
+                    <select id="admStatus" class="form-control" required>
+                      <option value="active">Active (Enrolled)</option>
+                      <option value="applicant">Applicant (Under Review)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Admission Date</label>
+                    <input type="date" id="admAdmissionDate" class="form-control" />
+                  </div>
+                  <div class="form-group">
+                    <label>Starting Cumulative GPA</label>
+                    <input type="number" id="admGpa" class="form-control" step="0.01" min="0" max="4.0" value="0.00" />
+                  </div>
+                </div>
+                <div class="form-step-actions">
+                  <button type="button" class="btn btn-outline" onclick="app.goToStep(1)">← Back to Personal</button>
+                  <button type="button" class="btn btn-primary" onclick="app.validateStep2AndNext()">Next: Contact Details →</button>
+                </div>
+              </div>
+
+              <!-- Step 3: Contact & Guardian -->
+              <div class="form-step" id="formStep3">
+                <h3 class="form-section-heading">Step 3: Contact Information & Guardian Records</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="required">Email Address</label>
+                    <input type="email" id="admEmail" class="form-control" required placeholder="e.g. student@university.edu" />
+                    <span class="field-error" id="errEmail"></span>
+                  </div>
+                  <div class="form-group">
+                    <label class="required">Phone Number (10 digits)</label>
+                    <div class="phone-input-wrap">
+                      <input type="tel" id="admPhone" class="form-control" required placeholder="e.g. 9876543210" maxlength="10" />
+                      <span class="phone-counter" id="admPhoneCounter">0/10 digits</span>
+                    </div>
+                    <span class="field-error" id="errPhone"></span>
+                  </div>
+                  <div class="form-group">
+                    <label>Guardian / Next of Kin Name</label>
+                    <input type="text" id="admGuardianName" class="form-control" placeholder="Guardian Full Name" />
+                  </div>
+                  <div class="form-group">
+                    <label>Guardian Phone Number</label>
+                    <input type="tel" id="admGuardianPhone" class="form-control" placeholder="Guardian Phone" />
+                  </div>
+                  <div class="form-group full-width">
+                    <label>Permanent Residential Address</label>
+                    <textarea id="admAddress" class="form-control" rows="2" placeholder="Street Address, City, State, ZIP"></textarea>
+                  </div>
+                </div>
+                <div class="form-step-actions">
+                  <button type="button" class="btn btn-outline" onclick="app.goToStep(2)">← Back to Academic</button>
+                  <button type="submit" class="btn btn-success" id="submitAdmissionBtn">✓ Complete Admission & Register</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- 4. DEPARTMENTS & FACULTY VIEW -->
+        <section class="tab-view" id="view-departments">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Departments & Academic Staff</h1>
+              <p class="view-subtitle">Manage institutional divisions, department chairs, budget allocations, and faculty roster</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" onclick="app.openAddDeptModal()">+ Add Department</button>
+              <button class="btn btn-secondary" onclick="app.openAddFacultyModal()">+ Add Faculty Member</button>
+            </div>
+          </div>
+
+          <div class="grid-2-col">
+            <div class="card">
+              <div class="card-header">
+                <h3>Academic Departments</h3>
+                <span class="badge" id="deptCountBadge">0 Total</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Head of Department</th>
+                      <th>Building</th>
+                      <th>Budget</th>
+                    </tr>
+                  </thead>
+                  <tbody id="deptTableBody">
+                    <tr><td colspan="5" class="text-center py-4 text-muted">Loading departments...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3>Faculty Roster</h3>
+                <span class="badge" id="facultyCountBadge">0 Total</span>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Emp #</th>
+                      <th>Name</th>
+                      <th>Designation</th>
+                      <th>Department</th>
+                      <th>Email</th>
+                    </tr>
+                  </thead>
+                  <tbody id="facultyTableBody">
+                    <tr><td colspan="5" class="text-center py-4 text-muted">Loading faculty...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. COURSES & CURRICULUM VIEW -->
+        <section class="tab-view" id="view-courses">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Course Curriculum & Prerequisites</h1>
+              <p class="view-subtitle">Catalog of credited courses, capacity thresholds, and prerequisite chains</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" onclick="app.openAddCourseModal()">+ Add New Course</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Course Code</th>
+                    <th>Title</th>
+                    <th>Credits</th>
+                    <th>Capacity</th>
+                    <th>Semester</th>
+                    <th>Prerequisite</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="coursesTableBody">
+                  <tr><td colspan="7" class="text-center py-4 text-muted">Loading course catalog...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. ATTENDANCE MARKING VIEW -->
+        <section class="tab-view" id="view-attendance">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Daily Attendance Marking</h1>
+              <p class="view-subtitle">Record session attendance states: Present, Absent, Late, Excused</p>
+            </div>
+          </div>
+
+          <div class="card mb-4">
+            <div class="filter-toolbar">
+              <div class="filter-group">
+                <label>Select Course</label>
+                <select id="attCourseSelect" class="form-control">
+                  <option value="">-- Choose Course --</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label>Session Date</label>
+                <input type="date" id="attSessionDate" class="form-control" />
+              </div>
+              <div class="filter-group">
+                <label>Period / Slot</label>
+                <select id="attSlotSelect" class="form-control">
+                  <option value="1">Slot 1 (09:00 - 10:00)</option>
+                  <option value="2">Slot 2 (10:00 - 11:00)</option>
+                  <option value="3">Slot 3 (11:15 - 12:15)</option>
+                  <option value="4">Slot 4 (13:00 - 14:00)</option>
+                </select>
+              </div>
+              <div class="filter-actions">
+                <button class="btn btn-primary" id="loadAttendanceRosterBtn">Load Student Roster</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="attendanceRosterCard" style="display: none;">
+            <div class="card-header">
+              <h3>Session Student Roster</h3>
+              <div class="action-row">
+                <button class="btn btn-sm btn-outline" onclick="app.markAllAttendance('present')">Mark All Present</button>
+                <button class="btn btn-sm btn-success" onclick="app.submitBulkAttendance()">✓ Save Attendance Records</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Register #</th>
+                    <th>Student Name</th>
+                    <th>Department</th>
+                    <th>Status Marking</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="attendanceRosterBody">
+                  <tr><td colspan="5" class="text-center py-4">Select a course to view students.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. EXAMS & GRADES VIEW -->
+        <section class="tab-view" id="view-grades">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Examinations & Grade Entries</h1>
+              <p class="view-subtitle">Weighted grading rules, amendment tracking, and transcript calculations</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" onclick="app.openCreateExamModal()">+ Schedule Examination</button>
+              <button class="btn btn-secondary" onclick="app.openEnterGradeModal()">📝 Enter / Amend Grade</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Scheduled Examinations & Assessments</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>Exam Title</th>
+                    <th>Type</th>
+                    <th>Max Marks</th>
+                    <th>Weightage</th>
+                    <th>Semester</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="examsTableBody">
+                  <tr><td colspan="7" class="text-center py-4 text-muted">Loading examinations...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8. FEE LEDGER VIEW -->
+        <section class="tab-view" id="view-fees">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Institutional Fee Ledger & Payments</h1>
+              <p class="view-subtitle">Invoicing, scholarship waivers, partial payments, and balance tracking</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-outline" onclick="app.exportFeesCSV()">📥 Export Fee Ledger</button>
+              <button class="btn btn-primary" onclick="app.openCreateInvoiceModal()">+ Generate Fee Invoice</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Student Reg</th>
+                    <th>Invoice Title</th>
+                    <th>Total Amount</th>
+                    <th>Waiver</th>
+                    <th>Net Amount</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="feesTableBody">
+                  <tr><td colspan="9" class="text-center py-4 text-muted">Loading fee invoices...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. TIMETABLE VIEW -->
+        <section class="tab-view" id="view-timetable">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Classrooms & Timetable Scheduling</h1>
+              <p class="view-subtitle">Conflict-aware schedule matrix for classrooms and faculty</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-secondary" onclick="app.openAddClassroomModal()">+ Add Classroom</button>
+              <button class="btn btn-primary" onclick="app.openScheduleSlotModal()">+ Schedule Time Slot</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Scheduled Academic Time Slots</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Time Window</th>
+                    <th>Course</th>
+                    <th>Faculty Instructor</th>
+                    <th>Classroom / Hall</th>
+                    <th>Capacity Check</th>
+                  </tr>
+                </thead>
+                <tbody id="timetableSlotsBody">
+                  <tr><td colspan="6" class="text-center py-4 text-muted">Loading timetable...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 10. REPORTS & ANALYTICS VIEW -->
+        <section class="tab-view" id="view-reports">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Advanced Analytics & Institutional Reports</h1>
+              <p class="view-subtitle">Detailed department KPIs, attendance thresholds, and CSV data extraction</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" onclick="app.exportStudentsCSV()">📥 Download Student Report</button>
+              <button class="btn btn-secondary" onclick="app.exportFeesCSV()">📥 Download Financial Ledger</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Department Level Academic Summary</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Department Name</th>
+                    <th>Total Students</th>
+                    <th>Average GPA</th>
+                    <th>Attendance Rate</th>
+                    <th>Academic Health</th>
+                  </tr>
+                </thead>
+                <tbody id="reportsDeptBody">
+                  <tr><td colspan="5" class="text-center py-4 text-muted">Loading report metrics...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. AUDIT LOGS VIEW -->
+        <section class="tab-view" id="view-audit">
+          <div class="view-header">
+            <div>
+              <h1 class="view-title">Administrative Audit Trail</h1>
+              <p class="view-subtitle">Immutable chronological log of changes to student records, grades, and financial ledger</p>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-outline" onclick="app.loadAuditLogs()">🔄 Refresh Audit Trail</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp (UTC)</th>
+                    <th>Action</th>
+                    <th>Entity Type</th>
+                    <th>Entity ID</th>
+                    <th>Authorized User</th>
+                    <th>Details & Changed Values</th>
+                  </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                  <tr><td colspan="6" class="text-center py-4 text-muted">Loading audit entries...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- STUDENT DOSSIER MODAL -->
+  <div class="modal-backdrop" id="dossierModal">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2 id="dossierStudentName">Student Dossier</h2>
+          <span class="badge" id="dossierStudentReg">REG000</span>
+        </div>
+        <button class="modal-close-btn" onclick="app.closeModal('dossierModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="dossier-metrics-strip">
+          <div class="metric-item">
+            <span class="label">Status</span>
+            <span class="val badge" id="dossierStatusBadge">active</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">Department</span>
+            <span class="val" id="dossierDept">Computer Science</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">Cumulative GPA</span>
+            <span class="val text-primary" id="dossierGpa">3.85</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">Attendance</span>
+            <span class="val" id="dossierAttendance">92%</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">Fee Balance Due</span>
+            <span class="val text-danger" id="dossierFeeBalance">$0.00</span>
+          </div>
+        </div>
+
+        <div class="dossier-tabs mt-4">
+          <div class="tabs-header">
+            <button class="tab-btn active" onclick="app.switchDossierTab('profile')">Profile Info</button>
+            <button class="tab-btn" onclick="app.switchDossierTab('transcript')">Academic Transcript</button>
+            <button class="tab-btn" onclick="app.switchDossierTab('fees')">Fee Invoices</button>
+          </div>
+          <div class="tab-content active" id="dossierTabProfile">
+            <div class="details-grid">
+              <div class="detail-field"><strong>Email:</strong> <span id="dosEmail"></span></div>
+              <div class="detail-field"><strong>Phone:</strong> <span id="dosPhone"></span></div>
+              <div class="detail-field"><strong>Academic Year:</strong> <span id="dosYear"></span></div>
+              <div class="detail-field"><strong>Semester:</strong> <span id="dosSemester"></span></div>
+              <div class="detail-field"><strong>Date of Birth:</strong> <span id="dosDob"></span></div>
+              <div class="detail-field"><strong>Gender:</strong> <span id="dosGender"></span></div>
+              <div class="detail-field"><strong>Guardian:</strong> <span id="dosGuardian"></span></div>
+              <div class="detail-field"><strong>Address:</strong> <span id="dosAddress"></span></div>
+            </div>
+          </div>
+          <div class="tab-content" id="dossierTabTranscript">
+            <table class="data-table mt-2">
+              <thead>
+                <tr>
+                  <th>Course Code</th>
+                  <th>Title</th>
+                  <th>Credits</th>
+                  <th>Percentage</th>
+                  <th>Letter Grade</th>
+                  <th>Grade Point</th>
+                </tr>
+              </thead>
+              <tbody id="dossierTranscriptBody">
+                <tr><td colspan="6" class="text-center py-2 text-muted">Loading transcript...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tab-content" id="dossierTabFees">
+            <table class="data-table mt-2">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Title</th>
+                  <th>Amount</th>
+                  <th>Waiver</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dossierFeesBody">
+                <tr><td colspan="7" class="text-center py-2 text-muted">Loading invoices...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModal('dossierModal')">Close Dossier</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECORD PAYMENT MODAL -->
+  <div class="modal-backdrop" id="paymentModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Record Fee Payment</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('paymentModal')">✕</button>
+      </div>
+      <form id="paymentForm">
+        <div class="modal-body">
+          <input type="hidden" id="payInvoiceId" />
+          <div class="form-group mb-3">
+            <label>Invoice Number</label>
+            <input type="text" id="payInvoiceNumber" class="form-control" readonly />
+          </div>
+          <div class="form-group mb-3">
+            <label>Current Outstanding Balance</label>
+            <input type="text" id="payCurrentBalance" class="form-control" readonly />
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Payment Amount ($)</label>
+            <input type="number" id="payAmount" class="form-control" step="0.01" min="0.01" required />
+            <small class="text-muted">Overpayments will be rejected automatically by backend ledger rules.</small>
+          </div>
+          <div class="form-group mb-3">
+            <label>Payment Method</label>
+            <select id="payMethod" class="form-control">
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="card">Credit / Debit Card</option>
+              <option value="cash">Cash / Cheque</option>
+              <option value="online">Online Payment Gateway</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Date</label>
+            <input type="date" id="payDate" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('paymentModal')">Cancel</button>
+          <button type="submit" class="btn btn-success">✓ Submit Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ENTER / AMEND GRADE MODAL -->
+  <div class="modal-backdrop" id="gradeModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Record / Amend Examination Marks</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('gradeModal')">✕</button>
+      </div>
+      <form id="gradeForm">
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Examination</label>
+            <select id="grdExamSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Student Register #</label>
+            <select id="grdStudentSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Marks Obtained</label>
+            <input type="number" id="grdMarks" class="form-control" step="0.1" min="0" required />
+          </div>
+          <div class="form-group mb-3">
+            <label>Absent from Examination?</label>
+            <select id="grdAbsent" class="form-control">
+              <option value="false">No (Attended)</option>
+              <option value="true">Yes (Absent)</option>
+            </select>
+          </div>
+          <div class="form-group mb-3">
+            <label>Amendment Reason (Required if updating existing record)</label>
+            <input type="text" id="grdReason" class="form-control" placeholder="e.g. Re-evaluation verified by HOD" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('gradeModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Grade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CREATE INVOICE MODAL -->
+  <div class="modal-backdrop" id="invoiceModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Generate Fee Invoice</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('invoiceModal')">✕</button>
+      </div>
+      <form id="invoiceForm">
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Select Student</label>
+            <select id="invStudentSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Invoice Title</label>
+            <input type="text" id="invTitle" class="form-control" placeholder="e.g. Tuition Fee - Fall 2026" required />
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Invoice Amount ($)</label>
+            <input type="number" id="invAmount" class="form-control" step="0.01" min="1.0" required />
+          </div>
+          <div class="form-group mb-3">
+            <label>Scholarship / Waiver Discount ($)</label>
+            <input type="number" id="invWaiver" class="form-control" step="0.01" min="0.0" value="0.00" />
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Due Date</label>
+            <input type="date" id="invDueDate" class="form-control" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('invoiceModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Invoice</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCHEDULE SLOT MODAL -->
+  <div class="modal-backdrop" id="slotModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Schedule Timetable Slot</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('slotModal')">✕</button>
+      </div>
+      <form id="slotForm">
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Course</label>
+            <select id="slotCourseSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Faculty Instructor</label>
+            <select id="slotFacultySelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Classroom / Hall</label>
+            <select id="slotRoomSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Day of Week</label>
+            <select id="slotDay" class="form-control">
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+            </select>
+          </div>
+          <div class="form-grid mb-3">
+            <div class="form-group">
+              <label class="required">Start Time (HH:MM)</label>
+              <input type="time" id="slotStart" class="form-control" value="09:00" required />
+            </div>
+            <div class="form-group">
+              <label class="required">End Time (HH:MM)</label>
+              <input type="time" id="slotEnd" class="form-control" value="10:30" required />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('slotModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Verify & Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONFIRM ACTION MODAL -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h3 id="confirmModalTitle">Confirm Action</h3>
+        <button class="modal-close-btn" onclick="app.closeModal('confirmModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmModalMessage">Are you sure you want to proceed?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="app.closeModal('confirmModal')">Cancel</button>
+        <button class="btn btn-danger" id="confirmModalActionBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK ADD STUDENT MODAL -->
+  <div class="modal-backdrop" id="addStudentModal">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h2>+ Add New Student</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('addStudentModal')">✕</button>
+      </div>
+      <form id="quickAddStudentForm" novalidate>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="required">Full Legal Name</label>
+              <input type="text" id="qckFullName" class="form-control" required placeholder="e.g. Eleanor Vance" />
+              <span class="field-error" id="errQckFullName"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Registration Number</label>
+              <div class="input-with-button">
+                <input type="text" id="qckRegNumber" class="form-control" required placeholder="e.g. CS2026101" />
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.autoGenRegNumber('qckRegNumber')">⚡ Auto</button>
+              </div>
+              <span class="field-error" id="errQckRegNumber"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Email Address</label>
+              <input type="email" id="qckEmail" class="form-control" required placeholder="student@university.edu" />
+              <span class="field-error" id="errQckEmail"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Phone Number (10 digits)</label>
+              <div class="phone-input-wrap">
+                <input type="tel" id="qckPhone" class="form-control" required placeholder="e.g. 9876543210" maxlength="10" />
+                <span class="phone-counter" id="qckPhoneCounter">0/10 digits</span>
+              </div>
+              <span class="field-error" id="errQckPhone"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Department</label>
+              <select id="qckDepartment" class="form-control" required>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics & Communication">Electronics & Communication</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Academic Year</label>
+              <select id="qckAcademicYear" class="form-control" required>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Semester</label>
+              <select id="qckSemester" class="form-control" required>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="5">Semester 5</option>
+                <option value="6">Semester 6</option>
+                <option value="7">Semester 7</option>
+                <option value="8">Semester 8</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Status</label>
+              <select id="qckStatus" class="form-control" required>
+                <option value="active">Active (Enrolled)</option>
+                <option value="applicant">Applicant (Under Review)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Starting Cumulative GPA</label>
+              <input type="number" id="qckGpa" class="form-control" step="0.01" min="0" max="4.0" value="0.00" />
+            </div>
+            <div class="form-group">
+              <label>Date of Birth</label>
+              <input type="date" id="qckDob" class="form-control" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('addStudentModal')">Cancel</button>
+          <button type="submit" class="btn btn-success" id="qckSubmitBtn">✓ Save & Add Student</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EDIT STUDENT MODAL -->
+  <div class="modal-backdrop" id="editStudentModal">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h2>✏️ Edit Student Details</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('editStudentModal')">✕</button>
+      </div>
+      <form id="editStudentForm" novalidate>
+        <input type="hidden" id="editStudentId" />
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="required">Full Legal Name</label>
+              <input type="text" id="editFullName" class="form-control" required />
+              <span class="field-error" id="errEditFullName"></span>
+            </div>
+            <div class="form-group">
+              <label>Registration Number (Read-only)</label>
+              <input type="text" id="editRegNumber" class="form-control" readonly disabled />
+            </div>
+            <div class="form-group">
+              <label class="required">Email Address</label>
+              <input type="email" id="editEmail" class="form-control" required />
+              <span class="field-error" id="errEditEmail"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Phone Number (10 digits)</label>
+              <div class="phone-input-wrap">
+                <input type="tel" id="editPhone" class="form-control" required maxlength="10" />
+                <span class="phone-counter" id="editPhoneCounter">0/10 digits</span>
+              </div>
+              <span class="field-error" id="errEditPhone"></span>
+            </div>
+            <div class="form-group">
+              <label class="required">Department</label>
+              <select id="editDepartment" class="form-control" required>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics & Communication">Electronics & Communication</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Academic Year</label>
+              <select id="editAcademicYear" class="form-control" required>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Semester</label>
+              <select id="editSemester" class="form-control" required>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="5">Semester 5</option>
+                <option value="6">Semester 6</option>
+                <option value="7">Semester 7</option>
+                <option value="8">Semester 8</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="required">Status</label>
+              <select id="editStatus" class="form-control" required>
+                <option value="active">Active</option>
+                <option value="applicant">Applicant</option>
+                <option value="suspended">Suspended</option>
+                <option value="graduated">Graduated</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>GPA</label>
+              <input type="number" id="editGpa" class="form-control" step="0.01" min="0" max="4.0" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('editStudentModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="editSubmitBtn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD DEPARTMENT MODAL -->
+  <div class="modal-backdrop" id="deptModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>+ Add Academic Department</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('deptModal')">✕</button>
+      </div>
+      <form id="deptForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Department Code</label>
+            <input type="text" id="deptCode" class="form-control" placeholder="e.g. CSE, ECE, MECH" required />
+            <span class="field-error" id="errDeptCode"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Department Name</label>
+            <input type="text" id="deptName" class="form-control" placeholder="e.g. Computer Science and Engineering" required />
+            <span class="field-error" id="errDeptName"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label>Head of Department (HOD)</label>
+            <input type="text" id="deptHod" class="form-control" placeholder="e.g. Dr. Jane Smith" />
+          </div>
+          <div class="form-group mb-3">
+            <label>Building / Location</label>
+            <input type="text" id="deptBuilding" class="form-control" placeholder="e.g. Block A, 3rd Floor" />
+          </div>
+          <div class="form-group">
+            <label>Annual Budget ($)</label>
+            <input type="number" id="deptBudget" class="form-control" step="1000" min="0" value="500000" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('deptModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="deptSubmitBtn">Create Department</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD FACULTY MODAL -->
+  <div class="modal-backdrop" id="facultyModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>+ Add Faculty Member</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('facultyModal')">✕</button>
+      </div>
+      <form id="facultyForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Employee / Faculty ID</label>
+            <input type="text" id="facEmployeeId" class="form-control" placeholder="e.g. FAC202601" required />
+            <span class="field-error" id="errFacEmployeeId"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Full Legal Name</label>
+            <input type="text" id="facFullName" class="form-control" placeholder="e.g. Prof. Alan Turing" required />
+            <span class="field-error" id="errFacFullName"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Institutional Email</label>
+            <input type="email" id="facEmail" class="form-control" placeholder="prof.turing@university.edu" required />
+            <span class="field-error" id="errFacEmail"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Phone Number (10 digits)</label>
+            <div class="phone-input-wrap">
+              <input type="tel" id="facPhone" class="form-control" required placeholder="e.g. 9876543210" maxlength="10" />
+              <span class="phone-counter" id="facPhoneCounter">0/10 digits</span>
+            </div>
+            <span class="field-error" id="errFacPhone"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Department</label>
+            <select id="facDeptSelect" class="form-control" required></select>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Designation</label>
+            <select id="facDesignation" class="form-control">
+              <option value="Professor">Professor</option>
+              <option value="Associate Professor">Associate Professor</option>
+              <option value="Assistant Professor" selected>Assistant Professor</option>
+              <option value="Lecturer">Lecturer</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Academic Specialization</label>
+            <input type="text" id="facSpecialization" class="form-control" placeholder="e.g. Distributed Systems & AI" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('facultyModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="facSubmitBtn">Add Faculty</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD COURSE MODAL -->
+  <div class="modal-backdrop" id="courseModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>+ Add Academic Course</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('courseModal')">✕</button>
+      </div>
+      <form id="courseForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Course Code</label>
+            <input type="text" id="crsCode" class="form-control" placeholder="e.g. CS301" required />
+            <span class="field-error" id="errCrsCode"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Course Title</label>
+            <input type="text" id="crsTitle" class="form-control" placeholder="e.g. Operating Systems Design" required />
+            <span class="field-error" id="errCrsTitle"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Department</label>
+            <select id="crsDeptSelect" class="form-control" required></select>
+          </div>
+          <div class="form-grid mb-3">
+            <div class="form-group">
+              <label class="required">Credit Units</label>
+              <input type="number" id="crsCredits" class="form-control" min="1" max="10" value="3" required />
+            </div>
+            <div class="form-group">
+              <label class="required">Max Seat Capacity</label>
+              <input type="number" id="crsCapacity" class="form-control" min="1" max="500" value="60" required />
+            </div>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Semester</label>
+            <select id="crsSemester" class="form-control" required>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="3">Semester 3</option>
+              <option value="4">Semester 4</option>
+              <option value="5">Semester 5</option>
+              <option value="6">Semester 6</option>
+              <option value="7">Semester 7</option>
+              <option value="8">Semester 8</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Course Syllabus / Description</label>
+            <textarea id="crsDesc" class="form-control" rows="2" placeholder="Brief outline of course competencies and objectives..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('courseModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="crsSubmitBtn">Create Course</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCHEDULE EXAMINATION MODAL -->
+  <div class="modal-backdrop" id="examModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>+ Schedule Examination</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('examModal')">✕</button>
+      </div>
+      <form id="examScheduleForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Course</label>
+            <select id="exmCourseSelect" class="form-control" required></select>
+            <span class="field-error" id="errExmCourse"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Examination Title</label>
+            <input type="text" id="exmTitle" class="form-control" placeholder="e.g. Midterm Theory Assessment" required />
+            <span class="field-error" id="errExmTitle"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Exam Type</label>
+            <select id="exmType" class="form-control">
+              <option value="midterm">Midterm Examination</option>
+              <option value="final">Final Term Examination</option>
+              <option value="quiz">Pop Quiz</option>
+              <option value="practical">Practical / Lab Exam</option>
+            </select>
+          </div>
+          <div class="form-grid mb-3">
+            <div class="form-group">
+              <label class="required">Max Marks</label>
+              <input type="number" id="exmMaxMarks" class="form-control" min="1" max="500" value="100" required />
+            </div>
+            <div class="form-group">
+              <label class="required">Weightage (%)</label>
+              <input type="number" id="exmWeightage" class="form-control" min="1" max="100" value="30" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Exam Date</label>
+            <input type="date" id="exmDate" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('examModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="exmSubmitBtn">Schedule Examination</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD CLASSROOM MODAL -->
+  <div class="modal-backdrop" id="classroomModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>+ Add Classroom / Hall</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('classroomModal')">✕</button>
+      </div>
+      <form id="classroomForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="required">Room Number</label>
+            <input type="text" id="clsRoomNum" class="form-control" placeholder="e.g. LH-201, LAB-3" required />
+            <span class="field-error" id="errClsRoomNum"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Building Name</label>
+            <input type="text" id="clsBuilding" class="form-control" placeholder="e.g. Science Block B" required />
+            <span class="field-error" id="errClsBuilding"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Room Type</label>
+            <select id="clsRoomType" class="form-control">
+              <option value="lecture_hall">Lecture Hall</option>
+              <option value="computer_lab">Computer Lab</option>
+              <option value="seminar_room">Seminar Room</option>
+              <option value="auditorium">Auditorium</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="required">Seating Capacity</label>
+            <input type="number" id="clsCapacity" class="form-control" min="10" max="500" value="60" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('classroomModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="clsSubmitBtn">Create Classroom</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION STACK -->
+  <div class="toast-stack" id="toastStack"></div>
+
+  <!-- Core JavaScript Application Bundle -->
+  <script src="/static/script.js"></script>
+</body>
+</html>
