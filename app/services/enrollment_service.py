@@ -45,6 +45,30 @@ class EnrollmentService:
         if existing and existing.status in ("enrolled", "completed"):
             raise DuplicateEntityException("Enrollment", "student_course", f"{student.register_number}:{course.code}")
 
+        # Check if student is already actively enrolled in this course in any academic period
+        active_anywhere = self.db.query(Enrollment).filter(
+            Enrollment.student_id == data.student_id,
+            Enrollment.course_id == data.course_id,
+            Enrollment.status == "enrolled"
+        ).first()
+        if active_anywhere:
+            raise DuplicateEntityException(
+                "Enrollment",
+                "student_course",
+                f"Student {student.register_number} is already actively enrolled in course {course.code} ({active_anywhere.academic_year} Sem {active_anywhere.semester})"
+            )
+
+        # Check if student already completed and passed this course
+        completed_passed = self.db.query(Enrollment).filter(
+            Enrollment.student_id == data.student_id,
+            Enrollment.course_id == data.course_id,
+            Enrollment.status == "completed"
+        ).first()
+        if completed_passed and (completed_passed.grade_point is None or completed_passed.grade_point >= 2.0):
+            raise ValidationException(
+                f"Student {student.register_number} has already completed and passed course '{course.code}'. Retaking passed courses is prohibited."
+            )
+
         # Check course capacity
         current_enrolled_count = self.repo.count_enrolled(data.course_id, data.academic_year, data.semester)
         if current_enrolled_count >= course.max_capacity:

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.services.academic_service import AcademicService
 from app.schemas.faculty import FacultyCreate, FacultyUpdate, FacultyResponse
+from app.schemas.common import MessageResponse
 
 router = APIRouter(prefix="/faculty", tags=["Faculty"])
 
@@ -34,3 +35,11 @@ def get_faculty(faculty_id: int, db: Session = Depends(get_db)):
 def update_faculty(faculty_id: int, faculty_in: FacultyUpdate, db: Session = Depends(get_db)):
     service = AcademicService(db)
     return service.update_faculty(faculty_id, faculty_in)
+
+
+@router.delete("/{faculty_id}", response_model=MessageResponse)
+def delete_faculty(faculty_id: int, db: Session = Depends(get_db)):
+    """Safely delete faculty member ensuring no active HOD role or timetable assignments."""
+    service = AcademicService(db)
+    service.delete_faculty(faculty_id)
+    return MessageResponse(message=f"Faculty member #{faculty_id} successfully deleted.")

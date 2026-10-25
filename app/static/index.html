@@ -175,8 +175,8 @@
               <div class="kpi-icon amber">💳</div>
               <div class="kpi-data">
                 <span class="kpi-label">FEES COLLECTED</span>
-                <h3 class="kpi-value" id="kpiFeesCollected">$0.00</h3>
-                <span class="kpi-trend alert" id="kpiFeesOutstanding">Outstanding: $0.00</span>
+                <h3 class="kpi-value" id="kpiFeesCollected">₹0.00</h3>
+                <span class="kpi-trend alert" id="kpiFeesOutstanding">Outstanding: ₹0.00</span>
               </div>
             </div>
           </div>
@@ -239,6 +239,7 @@
             </div>
             <div class="action-row">
               <button class="btn btn-outline" onclick="app.exportStudentsCSV()">📥 Export CSV</button>
+              <button class="btn btn-secondary" onclick="app.openCSVImportModal()">📂 Bulk Import CSV</button>
               <button class="btn btn-primary" onclick="app.openAddStudentModal()">+ Add New Student</button>
               <button class="btn btn-secondary" onclick="app.switchTab('admissions')">📋 3-Step Wizard</button>
             </div>
@@ -519,10 +520,11 @@
                       <th>Head of Department</th>
                       <th>Building</th>
                       <th>Budget</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="deptTableBody">
-                    <tr><td colspan="5" class="text-center py-4 text-muted">Loading departments...</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-muted">Loading departments...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -867,7 +869,7 @@
           </div>
           <div class="metric-item">
             <span class="label">Fee Balance Due</span>
-            <span class="val text-danger" id="dossierFeeBalance">$0.00</span>
+            <span class="val text-danger" id="dossierFeeBalance">₹0.00</span>
           </div>
         </div>
 
@@ -951,7 +953,7 @@
             <input type="text" id="payCurrentBalance" class="form-control" readonly />
           </div>
           <div class="form-group mb-3">
-            <label class="required">Payment Amount ($)</label>
+            <label class="required">Payment Amount (₹ / INR)</label>
             <input type="number" id="payAmount" class="form-control" step="0.01" min="0.01" required />
             <small class="text-muted">Overpayments will be rejected automatically by backend ledger rules.</small>
           </div>
@@ -1036,11 +1038,11 @@
             <input type="text" id="invTitle" class="form-control" placeholder="e.g. Tuition Fee - Fall 2026" required />
           </div>
           <div class="form-group mb-3">
-            <label class="required">Invoice Amount ($)</label>
+            <label class="required">Invoice Amount (₹ / INR)</label>
             <input type="number" id="invAmount" class="form-control" step="0.01" min="1.0" required />
           </div>
           <div class="form-group mb-3">
-            <label>Scholarship / Waiver Discount ($)</label>
+            <label>Scholarship / Waiver Discount (₹ / INR)</label>
             <input type="number" id="invWaiver" class="form-control" step="0.01" min="0.0" value="0.00" />
           </div>
           <div class="form-group mb-3">
@@ -1334,7 +1336,7 @@
             <input type="text" id="deptBuilding" class="form-control" placeholder="e.g. Block A, 3rd Floor" />
           </div>
           <div class="form-group">
-            <label>Annual Budget ($)</label>
+            <label>Annual Budget (₹ / INR)</label>
             <input type="number" id="deptBudget" class="form-control" step="1000" min="0" value="500000" />
           </div>
         </div>
@@ -1426,6 +1428,15 @@
           <div class="form-group mb-3">
             <label class="required">Department</label>
             <select id="crsDeptSelect" class="form-control" required></select>
+            <span class="field-error" id="errCrsDept"></span>
+          </div>
+          <div class="form-group mb-3">
+            <label>Prerequisite Course (Optional)</label>
+            <select id="crsPrereqSelect" class="form-control">
+              <option value="">-- None (No Prerequisite) --</option>
+            </select>
+            <span class="field-error" id="errCrsPrereq"></span>
+            <small class="text-muted d-block mt-1">Rule: Circular prerequisites (e.g. A → B → A) are strictly prohibited.</small>
           </div>
           <div class="form-grid mb-3">
             <div class="form-group">
@@ -1550,6 +1561,181 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="app.closeModal('classroomModal')">Cancel</button>
           <button type="submit" class="btn btn-primary" id="clsSubmitBtn">Create Classroom</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- BULK STUDENT CSV IMPORT MODAL -->
+  <div class="modal-backdrop" id="csvImportModal">
+    <div class="modal-card modal-lg" style="max-width: 960px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h2>📂 Bulk Student Import from CSV</h2>
+          <span class="badge">Administrative</span>
+        </div>
+        <button class="modal-close-btn" onclick="app.closeModal('csvImportModal')">✕</button>
+      </div>
+
+      <!-- Step Navigation Pills -->
+      <div class="step-indicator px-4 pt-2">
+        <div class="step active" id="csvStepPill1">
+          <span class="step-num">1</span>
+          <span class="step-title">Select CSV</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step" id="csvStepPill2">
+          <span class="step-num">2</span>
+          <span class="step-title">Validation Preview</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step" id="csvStepPill3">
+          <span class="step-num">3</span>
+          <span class="step-title">Import Summary</span>
+        </div>
+      </div>
+
+      <!-- Step 1: File Selection -->
+      <div class="modal-body" id="csvUploadView">
+        <div class="alert-box mb-4">
+          <p>Import student records directly into the institution's registry from a comma-separated values (CSV) file. All records will be verified against existing uniqueness constraints, email standards, and 10-digit phone requirements.</p>
+        </div>
+
+        <div class="card p-4 text-center file-dropzone mb-4" id="csvDropzone">
+          <div class="mb-2" style="font-size: 2.5rem;">📄</div>
+          <h4>Drag & Drop your CSV file here</h4>
+          <p class="text-muted mb-3">or click to browse from your computer (maximum 5MB, .csv only)</p>
+          <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display: none;" onchange="app.handleCSVFileSelected(event)" />
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('csvFileInput').click()">Choose CSV File</button>
+          <div class="mt-3 font-weight-bold text-primary" id="csvSelectedFileName" style="display: none;"></div>
+        </div>
+
+        <div class="form-grid mb-3">
+          <div class="form-group">
+            <label>Template & Instructions</label>
+            <div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="app.downloadCSVTemplate()">
+                📥 Download CSV Template (.csv)
+              </button>
+            </div>
+            <small class="text-muted">Includes required column headers and sample fictional student entries.</small>
+          </div>
+          <div class="form-group">
+            <label>Import Strategy</label>
+            <label class="checkbox-container mt-2">
+              <input type="checkbox" id="csvAllowPartial" checked />
+              <span>Allow partial import (skip invalid/duplicate rows and import valid rows)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Validation Preview -->
+      <div class="modal-body" id="csvPreviewView" style="display: none;">
+        <div class="kpi-grid mb-3" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="kpi-card p-2 text-center">
+            <span class="kpi-label">TOTAL ROWS</span>
+            <h3 class="kpi-value" id="prevTotalRows">0</h3>
+          </div>
+          <div class="kpi-card p-2 text-center" style="border-left: 4px solid var(--color-success);">
+            <span class="kpi-label text-success">VALID ROWS</span>
+            <h3 class="kpi-value text-success" id="prevValidRows">0</h3>
+          </div>
+          <div class="kpi-card p-2 text-center" style="border-left: 4px solid var(--color-warning);">
+            <span class="kpi-label text-warning">DUPLICATES</span>
+            <h3 class="kpi-value text-warning" id="prevDuplicateRows">0</h3>
+          </div>
+          <div class="kpi-card p-2 text-center" style="border-left: 4px solid var(--color-danger);">
+            <span class="kpi-label text-danger">INVALID ROWS</span>
+            <h3 class="kpi-value text-danger" id="prevInvalidRows">0</h3>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h4>Pre-Import Records Inspection</h4>
+          <button type="button" class="btn btn-sm btn-outline" id="csvDownloadErrorsBtn" onclick="app.downloadCSVErrorReport()" style="display: none;">
+            📥 Download Error Report (CSV)
+          </button>
+        </div>
+
+        <div class="table-responsive" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+          <table class="data-table" id="csvPreviewTable">
+            <thead>
+              <tr>
+                <th>Row</th>
+                <th>Register #</th>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Dept</th>
+                <th>Year</th>
+                <th>Status</th>
+                <th>Validation Result</th>
+              </tr>
+            </thead>
+            <tbody id="csvPreviewTableBody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Step 3: Result Summary -->
+      <div class="modal-body text-center p-4" id="csvResultView" style="display: none;">
+        <div class="mb-3" style="font-size: 3.5rem; color: var(--color-success);">✓</div>
+        <h2 id="csvResultTitle">Bulk Import Complete!</h2>
+        <p class="text-muted mb-4" id="csvResultMessage">Successfully imported student records into the database.</p>
+        <div class="d-inline-flex gap-4 p-3 bg-light rounded border mb-4">
+          <div><strong class="text-success" id="resImportedCount">0</strong> Students Imported</div>
+          <div><strong class="text-warning" id="resDuplicateCount">0</strong> Duplicates Skipped</div>
+          <div><strong class="text-danger" id="resFailedCount">0</strong> Invalid Rows Skipped</div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer" id="csvModalFooter">
+        <button type="button" class="btn btn-outline" onclick="app.closeModal('csvImportModal')">Cancel</button>
+        <button type="button" class="btn btn-primary" id="csvInspectBtn" onclick="app.inspectCSVFile()">
+          Inspect & Validate File →
+        </button>
+        <button type="button" class="btn btn-outline" id="csvBackBtn" style="display: none;" onclick="app.backToCSVUpload()">
+          ← Select Different File
+        </button>
+        <button type="button" class="btn btn-success" id="csvConfirmImportBtn" style="display: none;" onclick="app.executeCSVImport()">
+          ✓ Import Valid Records Now
+        </button>
+        <button type="button" class="btn btn-primary" id="csvDoneBtn" style="display: none;" onclick="app.closeCSVModalAndRefresh()">
+          Done & View Directory
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASSIGN HEAD OF DEPARTMENT MODAL -->
+  <div class="modal-backdrop" id="assignHodModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Appoint Head of Department (HOD)</h2>
+        <button class="modal-close-btn" onclick="app.closeModal('assignHodModal')">✕</button>
+      </div>
+      <form id="assignHodForm" onsubmit="app.handleAssignHodSubmit(event)">
+        <input type="hidden" id="hodDeptId" />
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label>Department</label>
+            <input type="text" id="hodDeptName" class="form-control" readonly style="background: #f8fafc; font-weight: 600;" />
+          </div>
+          <div class="form-group mb-3">
+            <label class="required">Select Eligible Faculty Member</label>
+            <select id="hodFacultySelect" class="form-control" required></select>
+            <span class="field-error" id="errHodFaculty"></span>
+            <small class="text-muted d-block mt-1">Institutional Rule: Only active faculty currently assigned to this department are eligible for appointment.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="app.closeModal('assignHodModal')">Cancel</button>
+          <button type="button" class="btn btn-danger" id="vacateHodBtn" onclick="app.handleVacateHod()">Vacate Role</button>
+          <button type="submit" class="btn btn-primary" id="saveHodBtn">Confirm Appointment</button>
         </div>
       </form>
     </div>

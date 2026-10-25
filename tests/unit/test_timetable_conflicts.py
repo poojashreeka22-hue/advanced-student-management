@@ -72,6 +72,17 @@ conflict_cases = [
 
 @pytest.mark.parametrize("room_code,day,s1,e1,s2,e2", conflict_cases, ids=[f"sched_conflict_{i}" for i in range(30)])
 def test_classroom_conflict_detection(db_session, sample_course, room_code, day, s1, e1, s2, e2):
+    from app.models.faculty import Faculty
+    f1 = db_session.query(Faculty).filter(Faculty.id == 1).first()
+    if not f1:
+        f1 = Faculty(id=1, employee_id="FAC_TEST_1", full_name="Dr. Alpha", email="alpha@univ.edu", department_id=sample_course.department_id, is_active=True)
+        db_session.add(f1)
+    f2 = db_session.query(Faculty).filter(Faculty.id == 2).first()
+    if not f2:
+        f2 = Faculty(id=2, employee_id="FAC_TEST_2", full_name="Dr. Beta", email="beta@univ.edu", department_id=sample_course.department_id, is_active=True)
+        db_session.add(f2)
+    db_session.commit()
+
     tt_service = TimetableService(db_session)
     room = tt_service.create_classroom(ClassroomCreate(
         room_number=room_code,

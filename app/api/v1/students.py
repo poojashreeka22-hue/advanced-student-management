@@ -3,22 +3,27 @@ Student Management and Admissions API Endpoints.
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, UploadFile, File, Form, Response
 from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.services.student_service import StudentService
 from app.services.grade_service import GradeService
+from app.services.student_import_service import StudentCSVImportService
 from app.schemas.student import (
     StudentCreate,
     StudentUpdate,
     StudentStatusUpdate,
     StudentResponse,
-    StudentDetailResponse
+    StudentDetailResponse,
+    StudentCSVImportPreviewResponse,
+    StudentCSVImportResult,
+    StudentCSVErrorReportRequest
 )
 from app.schemas.grade import AcademicTranscript
 from app.schemas.common import MessageResponse
 from app.api.dependencies import get_current_user_optional, require_roles
 from app.models.user import User
+from app.core.permissions import Role
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -60,6 +65,61 @@ def get_students(
         sort_desc=sort_desc
     )
     return items
+
+
+@router.get("/csv-template")
+def download_csv_template():
+    """Download RFC 4180 CSV template for bulk student admission."""
+    template_content = StudentCSVImportService.get_csv_template()
+    return Response(
+        content=template_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=student_import_template.csv"}
+    )
+
+
+@router.post("/import-csv/preview", response_model=StudentCSVImportPreviewResponse)
+async def preview_csv_import(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([Role.ADMIN.value]))
+):
+    """Validate uploaded CSV file and return pre-import inspection results."""
+    file_bytes = await file.read()
+    service = StudentCSVImportService(db)
+    return service.preview_import(file_bytes, filename=file.filename or "upload.csv")
+
+
+@router.post("/import-csv", response_model=StudentCSVImportResult)
+async def import_students_csv(
+    file: UploadFile = File(...),
+    allow_partial: bool = Form(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles([Role.ADMIN.value]))
+):
+    """Bulk import student records from an uploaded CSV file with transaction safety."""
+    file_bytes = await file.read()
+    service = StudentCSVImportService(db)
+    return service.import_students_from_csv(
+        file_bytes=file_bytes,
+        filename=file.filename or "upload.csv",
+        allow_partial=allow_partial,
+        current_username=current_user.username
+    )
+
+
+@router.post("/import-csv/error-report")
+def download_error_report(
+    error_data: StudentCSVErrorReportRequest,
+    current_user: User = Depends(require_roles([Role.ADMIN.value]))
+):
+    """Download formula-injection safe CSV report of rejected rows."""
+    report_csv = StudentCSVImportService.generate_error_report_csv(error_data.errors)
+    return Response(
+        content=report_csv,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=student_import_errors.csv"}
+    )
 
 
 @router.get("/{student_id}", response_model=StudentResponse)

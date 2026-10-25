@@ -20,6 +20,8 @@ class EduTrackApp {
     this.deptChartInstance = null;
     this.gradeChartInstance = null;
     this.searchDebounceTimer = null;
+    this.csvSelectedFile = null;
+    this.csvPreviewData = null;
 
     this.init();
   }
@@ -27,6 +29,7 @@ class EduTrackApp {
   async init() {
     this.bindEvents();
     this.setupKeyboardShortcuts();
+    this.setupCSVDragAndDrop();
     await this.refreshAllData();
   }
 
@@ -243,8 +246,8 @@ class EduTrackApp {
       document.getElementById('kpiTotalCourses').textContent = data.total_courses;
       document.getElementById('kpiTotalFaculty').textContent = `${data.total_faculty} Faculty Assigned`;
       document.getElementById('kpiAttendanceRate').textContent = `${data.overall_attendance_rate.toFixed(1)}%`;
-      document.getElementById('kpiFeesCollected').textContent = `$${data.total_fees_collected.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-      document.getElementById('kpiFeesOutstanding').textContent = `Outstanding: $${data.total_fees_outstanding.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('kpiFeesCollected').textContent = `₹${data.total_fees_collected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      document.getElementById('kpiFeesOutstanding').textContent = `Outstanding: ₹${data.total_fees_outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
       this.renderDepartmentChart(data.department_distribution);
       await this.renderGradeDistributionChart();
@@ -604,7 +607,7 @@ class EduTrackApp {
       document.getElementById('dossierDept').textContent = data.department;
       document.getElementById('dossierGpa').textContent = (data.gpa || 0).toFixed(2);
       document.getElementById('dossierAttendance').textContent = `${(data.attendance_rate || 0).toFixed(1)}%`;
-      document.getElementById('dossierFeeBalance').textContent = `$${(data.outstanding_fee_balance || 0).toFixed(2)}`;
+      document.getElementById('dossierFeeBalance').textContent = `₹${(data.outstanding_fee_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
       const badge = document.getElementById('dossierStatusBadge');
       badge.textContent = data.status || 'active';
@@ -689,10 +692,10 @@ class EduTrackApp {
         <tr>
           <td><strong>${inv.invoice_number}</strong></td>
           <td>${inv.title}</td>
-          <td>$${inv.amount.toFixed(2)}</td>
-          <td>$${inv.waiver_amount.toFixed(2)}</td>
-          <td>$${inv.total_paid.toFixed(2)}</td>
-          <td class="text-danger"><strong>$${inv.balance_due.toFixed(2)}</strong></td>
+          <td>₹${inv.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td>₹${inv.waiver_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td>₹${inv.total_paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td class="text-danger"><strong>₹${inv.balance_due.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
           <td><span class="badge badge-${inv.status}">${inv.status}</span></td>
         </tr>
       `).join('');
@@ -832,9 +835,18 @@ class EduTrackApp {
           <tr>
             <td><strong>${d.code}</strong></td>
             <td>${d.name}</td>
-            <td>${d.head_of_department || 'TBD'}</td>
+            <td>
+              <span class="badge ${d.hod_faculty_id ? 'badge-active' : 'badge-suspended'}">
+                ${d.head_of_department || 'Vacant / Not Assigned'}
+              </span>
+            </td>
             <td>${d.building || 'N/A'}</td>
-            <td>$${(d.budget || 0).toLocaleString()}</td>
+            <td>₹${(d.budget || 0).toLocaleString('en-IN')}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="app.openAssignHodModal(${d.id})">
+                ${d.hod_faculty_id ? '⚙ Change HOD' : '+ Assign HOD'}
+              </button>
+            </td>
           </tr>
         `).join('');
       }
@@ -865,17 +877,21 @@ class EduTrackApp {
       this.courses = res.ok ? await res.json() : [];
       const tbody = document.getElementById('coursesTableBody');
       if (tbody) {
-        tbody.innerHTML = this.courses.map(c => `
-          <tr>
-            <td><strong>${c.code}</strong></td>
-            <td>${c.title}</td>
-            <td>${c.credits} Credits</td>
-            <td>${c.max_capacity} Students</td>
-            <td>Semester ${c.semester}</td>
-            <td>${c.prerequisite_id ? `Course #${c.prerequisite_id}` : 'None'}</td>
-            <td><span class="badge ${c.is_active ? 'badge-active' : 'badge-suspended'}">${c.is_active ? 'Active' : 'Inactive'}</span></td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = this.courses.map(c => {
+          const prereqObj = c.prerequisite_id ? this.courses.find(x => x.id === c.prerequisite_id) : null;
+          const prereqText = prereqObj ? `${prereqObj.code} (${prereqObj.title})` : (c.prerequisite_id ? `Course #${c.prerequisite_id}` : 'None');
+          return `
+            <tr>
+              <td><strong>${c.code}</strong></td>
+              <td>${c.title}</td>
+              <td>${c.credits} Credits</td>
+              <td>${c.max_capacity} Students</td>
+              <td>Semester ${c.semester}</td>
+              <td><span class="badge ${c.prerequisite_id ? 'badge-suspended' : 'badge-light'}">${prereqText}</span></td>
+              <td><span class="badge ${c.is_active ? 'badge-active' : 'badge-suspended'}">${c.is_active ? 'Active' : 'Inactive'}</span></td>
+            </tr>
+          `;
+        }).join('');
       }
     } catch (e) {
       console.warn(e);
@@ -994,14 +1010,14 @@ class EduTrackApp {
           <td><strong>${inv.invoice_number}</strong></td>
           <td>${inv.student_reg || `Student #${inv.student_id}`}</td>
           <td>${inv.title}</td>
-          <td>$${inv.amount.toFixed(2)}</td>
-          <td>$${inv.waiver_amount.toFixed(2)}</td>
-          <td>$${(inv.amount - inv.waiver_amount).toFixed(2)}</td>
+          <td>₹${inv.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td>₹${inv.waiver_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td>₹${(inv.amount - inv.waiver_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
           <td>${inv.due_date}</td>
           <td><span class="badge badge-${inv.status}">${inv.status}</span></td>
           <td>
             ${inv.balance_due > 0 ?
-              `<button class="btn btn-sm btn-success" onclick="app.openPaymentModal(${inv.id}, '${inv.invoice_number}', ${inv.balance_due})">Pay ($${inv.balance_due.toFixed(2)})</button>` :
+              `<button class="btn btn-sm btn-success" onclick="app.openPaymentModal(${inv.id}, '${inv.invoice_number}', ${inv.balance_due})">Pay (₹${inv.balance_due.toFixed(2)})</button>` :
               `<span class="badge badge-active">Fully Paid</span>`
             }
           </td>
@@ -1015,7 +1031,7 @@ class EduTrackApp {
   openPaymentModal(invoiceId, invoiceNumber, balanceDue) {
     document.getElementById('payInvoiceId').value = invoiceId;
     document.getElementById('payInvoiceNumber').value = invoiceNumber;
-    document.getElementById('payCurrentBalance').value = `$${balanceDue.toFixed(2)}`;
+    document.getElementById('payCurrentBalance').value = `₹${balanceDue.toFixed(2)}`;
     document.getElementById('payAmount').value = balanceDue.toFixed(2);
     document.getElementById('payDate').value = new Date().toISOString().split('T')[0];
     this.openModal('paymentModal');
@@ -1042,7 +1058,7 @@ class EduTrackApp {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Payment could not be recorded');
 
-      this.showToast(`Payment of $${amount.toFixed(2)} processed! Ref: ${data.payment_reference}`, 'success');
+      this.showToast(`Payment of ₹${amount.toFixed(2)} processed! Ref: ${data.payment_reference}`, 'success');
       this.closeModal('paymentModal');
       this.loadFeeInvoices();
       this.refreshDashboard();
@@ -1675,14 +1691,34 @@ class EduTrackApp {
   }
 
   // ==================== COURSE MODAL ====================
-  openAddCourseModal() {
+  async openAddCourseModal() {
     const f = document.getElementById('courseForm');
     if (f) f.reset();
+
+    // Ensure departments and courses catalog are loaded
+    if (!this.departments || this.departments.length === 0) {
+      await this.loadDepartmentsAndFaculty();
+    }
+    if (!this.courses || this.courses.length === 0) {
+      await this.loadCourses();
+    }
+
     const sel = document.getElementById('crsDeptSelect');
     if (sel) {
-      sel.innerHTML = this.departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+      if (this.departments.length === 0) {
+        sel.innerHTML = '<option value="">-- No Departments Available (Create a department first) --</option>';
+      } else {
+        sel.innerHTML = this.departments.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join('');
+      }
     }
-    ['errCrsCode', 'errCrsTitle'].forEach(id => {
+
+    const prereqSel = document.getElementById('crsPrereqSelect');
+    if (prereqSel) {
+      prereqSel.innerHTML = '<option value="">-- None (No Prerequisite) --</option>' +
+        this.courses.filter(c => c.is_active).map(c => `<option value="${c.id}">${c.code} — ${c.title}</option>`).join('');
+    }
+
+    ['errCrsCode', 'errCrsTitle', 'errCrsDept', 'errCrsPrereq'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = '';
     });
@@ -1693,11 +1729,14 @@ class EduTrackApp {
     e.preventDefault();
     const code = document.getElementById('crsCode').value.trim();
     const title = document.getElementById('crsTitle').value.trim();
-    const deptId = parseInt(document.getElementById('crsDeptSelect').value, 10);
+    const deptVal = document.getElementById('crsDeptSelect').value;
+    const deptId = parseInt(deptVal, 10);
     const credits = parseInt(document.getElementById('crsCredits').value, 10) || 3;
     const capacity = parseInt(document.getElementById('crsCapacity').value, 10) || 60;
     const semester = parseInt(document.getElementById('crsSemester').value, 10) || 1;
     const desc = document.getElementById('crsDesc').value.trim() || undefined;
+    const prereqVal = document.getElementById('crsPrereqSelect')?.value;
+    const prereqId = prereqVal ? parseInt(prereqVal, 10) : undefined;
 
     let hasErr = false;
     if (!code) {
@@ -1712,6 +1751,14 @@ class EduTrackApp {
     } else {
       document.getElementById('errCrsTitle').textContent = '';
     }
+    if (isNaN(deptId) || !deptVal) {
+      const el = document.getElementById('errCrsDept');
+      if (el) el.textContent = 'A valid academic department must be selected.';
+      hasErr = true;
+    } else {
+      const el = document.getElementById('errCrsDept');
+      if (el) el.textContent = '';
+    }
     if (hasErr) return;
 
     try {
@@ -1725,15 +1772,102 @@ class EduTrackApp {
           credits: credits,
           max_capacity: capacity,
           semester: semester,
-          description: desc
+          description: desc,
+          prerequisite_id: prereqId
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(this.formatApiError(data, 'Failed to create course'));
 
       this.closeModal('courseModal');
-      this.showToast(`Course ${data.code} — ${data.title} created!`, 'success');
-      await this.loadCoursesAndCurriculum();
+      this.showToast(`Course ${data.code} — ${data.title} successfully created!`, 'success');
+      await this.loadCourses();
+    } catch (err) {
+      this.showToast(err.message, 'error');
+      const prereqErr = document.getElementById('errCrsPrereq');
+      if (prereqErr && err.message.toLowerCase().includes('prerequisite')) {
+        prereqErr.textContent = err.message;
+      }
+    }
+  }
+
+  // ==================== HOD APPOINTMENT MODAL ====================
+  openAssignHodModal(deptId) {
+    const dept = this.departments.find(d => d.id === deptId);
+    if (!dept) return;
+
+    document.getElementById('hodDeptId').value = deptId;
+    document.getElementById('hodDeptName').value = `${dept.name} (${dept.code})`;
+
+    // Filter faculty belonging to this department who are active
+    const deptFaculty = this.faculty.filter(f => f.department_id === deptId && f.is_active);
+    const sel = document.getElementById('hodFacultySelect');
+    const errEl = document.getElementById('errHodFaculty');
+    if (errEl) errEl.textContent = '';
+
+    if (deptFaculty.length === 0) {
+      sel.innerHTML = '<option value="">-- No Active Faculty Members Assigned to this Department --</option>';
+    } else {
+      sel.innerHTML = deptFaculty.map(f => `
+        <option value="${f.id}" ${f.id === dept.hod_faculty_id ? 'selected' : ''}>
+          ${f.full_name} (${f.designation} — ${f.employee_id})
+        </option>
+      `).join('');
+    }
+
+    const vacateBtn = document.getElementById('vacateHodBtn');
+    if (vacateBtn) {
+      vacateBtn.style.display = dept.hod_faculty_id ? 'inline-block' : 'none';
+    }
+
+    this.openModal('assignHodModal');
+  }
+
+  async handleAssignHodSubmit(e) {
+    e.preventDefault();
+    const deptId = parseInt(document.getElementById('hodDeptId').value, 10);
+    const facVal = document.getElementById('hodFacultySelect').value;
+    const facId = parseInt(facVal, 10);
+
+    const errEl = document.getElementById('errHodFaculty');
+    if (isNaN(facId) || !facVal) {
+      if (errEl) errEl.textContent = 'Please select an eligible faculty member.';
+      return;
+    }
+    if (errEl) errEl.textContent = '';
+
+    try {
+      const res = await fetch(`/api/v1/departments/${deptId}/hod`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ faculty_id: facId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(this.formatApiError(data, 'Failed to assign Head of Department'));
+
+      this.closeModal('assignHodModal');
+      this.showToast(`Appointed ${data.head_of_department} as Head of Department!`, 'success');
+      await this.loadDepartmentsAndFaculty();
+    } catch (err) {
+      this.showToast(err.message, 'error');
+      if (errEl) errEl.textContent = err.message;
+    }
+  }
+
+  async handleVacateHod() {
+    const deptId = parseInt(document.getElementById('hodDeptId').value, 10);
+    if (!deptId) return;
+
+    try {
+      const res = await fetch(`/api/v1/departments/${deptId}/hod`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(this.formatApiError(data, 'Failed to vacate Head of Department'));
+
+      this.closeModal('assignHodModal');
+      this.showToast(`Head of Department role vacated for ${data.name}.`, 'info');
+      await this.loadDepartmentsAndFaculty();
     } catch (err) {
       this.showToast(err.message, 'error');
     }
@@ -1887,6 +2021,344 @@ class EduTrackApp {
     await this.refreshAllData();
     this.showToast('Sample dataset loaded successfully!', 'success');
     if (btn) btn.disabled = false;
+  }
+
+  // ==================== AUTHENTICATION HELPER ====================
+  async getAuthToken() {
+    let token = localStorage.getItem('edutrack_token');
+    if (!token) {
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password: 'AdminPass123!' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          token = data.access_token;
+          localStorage.setItem('edutrack_token', token);
+        }
+      } catch (e) {
+        console.warn('Could not acquire admin token', e);
+      }
+    }
+    return token;
+  }
+
+  // ==================== CSV BULK IMPORT ====================
+  openCSVImportModal() {
+    this.resetCSVModal();
+    this.openModal('csvImportModal');
+  }
+
+  resetCSVModal() {
+    this.csvSelectedFile = null;
+    this.csvPreviewData = null;
+
+    const fileInput = document.getElementById('csvFileInput');
+    if (fileInput) fileInput.value = '';
+
+    const nameEl = document.getElementById('csvSelectedFileName');
+    if (nameEl) {
+      nameEl.textContent = '';
+      nameEl.style.display = 'none';
+    }
+
+    // Reset Steps
+    const upView = document.getElementById('csvUploadView');
+    const prevView = document.getElementById('csvPreviewView');
+    const resView = document.getElementById('csvResultView');
+    if (upView) upView.style.display = 'block';
+    if (prevView) prevView.style.display = 'none';
+    if (resView) resView.style.display = 'none';
+
+    const p1 = document.getElementById('csvStepPill1');
+    const p2 = document.getElementById('csvStepPill2');
+    const p3 = document.getElementById('csvStepPill3');
+    if (p1) p1.className = 'step active';
+    if (p2) p2.className = 'step';
+    if (p3) p3.className = 'step';
+
+    // Buttons
+    const inspectBtn = document.getElementById('csvInspectBtn');
+    const backBtn = document.getElementById('csvBackBtn');
+    const confirmBtn = document.getElementById('csvConfirmImportBtn');
+    const doneBtn = document.getElementById('csvDoneBtn');
+    const errBtn = document.getElementById('csvDownloadErrorsBtn');
+
+    if (inspectBtn) {
+      inspectBtn.style.display = 'inline-flex';
+      inspectBtn.disabled = false;
+      inspectBtn.textContent = 'Inspect & Validate File →';
+    }
+    if (backBtn) backBtn.style.display = 'none';
+    if (confirmBtn) confirmBtn.style.display = 'none';
+    if (doneBtn) doneBtn.style.display = 'none';
+    if (errBtn) errBtn.style.display = 'none';
+  }
+
+  handleCSVFileSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      this.showToast('Please select a valid .csv file.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      this.showToast('File size exceeds 5MB limit.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    this.csvSelectedFile = file;
+    const nameEl = document.getElementById('csvSelectedFileName');
+    if (nameEl) {
+      nameEl.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      nameEl.style.display = 'block';
+    }
+  }
+
+  setupCSVDragAndDrop() {
+    const dropzone = document.getElementById('csvDropzone');
+    if (!dropzone) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('drag-over');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('drag-over');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        const dummyEvent = { target: { files: [file], value: '' } };
+        this.handleCSVFileSelected(dummyEvent);
+      }
+    });
+  }
+
+  downloadCSVTemplate() {
+    window.location.href = '/api/v1/students/csv-template';
+  }
+
+  async inspectCSVFile() {
+    if (!this.csvSelectedFile) {
+      this.showToast('Please choose or drag a CSV file first.', 'warning');
+      return;
+    }
+
+    const inspectBtn = document.getElementById('csvInspectBtn');
+    inspectBtn.disabled = true;
+    inspectBtn.textContent = 'Inspecting CSV...';
+
+    const token = await this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', this.csvSelectedFile);
+
+    try {
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/v1/students/import-csv/preview', {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(this.formatApiError(data, 'CSV inspection failed'));
+      }
+
+      this.csvPreviewData = data;
+
+      // Update KPI Badges
+      document.getElementById('prevTotalRows').textContent = data.total_rows;
+      document.getElementById('prevValidRows').textContent = data.valid_rows_count;
+      document.getElementById('prevDuplicateRows').textContent = data.duplicate_rows_count;
+      document.getElementById('prevInvalidRows').textContent = data.invalid_rows_count;
+
+      // Render Preview Table
+      const tbody = document.getElementById('csvPreviewTableBody');
+      if (data.preview_rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-3 text-muted">No records detected in file.</td></tr>';
+      } else {
+        tbody.innerHTML = data.preview_rows.map(r => {
+          let badgeHtml = '<span class="badge badge-success">✓ Ready</span>';
+          let errorText = '';
+
+          if (!r.is_valid) {
+            badgeHtml = `<span class="badge badge-danger">✕ Error</span>`;
+            errorText = `<div class="text-danger small mt-1">${r.errors.join('<br>')}</div>`;
+          } else if (r.is_duplicate) {
+            badgeHtml = `<span class="badge badge-warning">⚠ Duplicate</span>`;
+            errorText = `<div class="text-warning small mt-1">${r.duplicate_reason || 'Duplicate record'}</div>`;
+          }
+
+          return `
+            <tr>
+              <td><strong>${r.row_number}</strong></td>
+              <td><code>${r.register_number}</code></td>
+              <td>${r.full_name}</td>
+              <td>${r.email}</td>
+              <td>${r.phone_number}</td>
+              <td>${r.department}</td>
+              <td>${r.academic_year} / Sem ${r.semester}</td>
+              <td>${r.status}</td>
+              <td>${badgeHtml}${errorText}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Show error download button if invalid rows exist
+      const errBtn = document.getElementById('csvDownloadErrorsBtn');
+      if (errBtn) {
+        errBtn.style.display = data.error_summary && data.error_summary.length > 0 ? 'inline-flex' : 'none';
+      }
+
+      // Switch to Step 2
+      document.getElementById('csvUploadView').style.display = 'none';
+      document.getElementById('csvPreviewView').style.display = 'block';
+
+      document.getElementById('csvStepPill1').className = 'step completed';
+      document.getElementById('csvStepPill2').className = 'step active';
+
+      inspectBtn.style.display = 'none';
+      document.getElementById('csvBackBtn').style.display = 'inline-flex';
+      const confirmBtn = document.getElementById('csvConfirmImportBtn');
+      confirmBtn.style.display = 'inline-flex';
+      confirmBtn.textContent = `✓ Import ${data.valid_rows_count} Valid Student(s)`;
+      confirmBtn.disabled = data.valid_rows_count === 0;
+
+    } catch (err) {
+      this.showToast(err.message, 'error');
+    } finally {
+      inspectBtn.disabled = false;
+      inspectBtn.textContent = 'Inspect & Validate File →';
+    }
+  }
+
+  backToCSVUpload() {
+    document.getElementById('csvUploadView').style.display = 'block';
+    document.getElementById('csvPreviewView').style.display = 'none';
+    document.getElementById('csvStepPill1').className = 'step active';
+    document.getElementById('csvStepPill2').className = 'step';
+
+    document.getElementById('csvInspectBtn').style.display = 'inline-flex';
+    document.getElementById('csvBackBtn').style.display = 'none';
+    document.getElementById('csvConfirmImportBtn').style.display = 'none';
+  }
+
+  async downloadCSVErrorReport() {
+    if (!this.csvPreviewData || !this.csvPreviewData.error_summary || this.csvPreviewData.error_summary.length === 0) {
+      this.showToast('No errors to export.', 'info');
+      return;
+    }
+
+    const token = await this.getAuthToken();
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/v1/students/import-csv/error-report', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ errors: this.csvPreviewData.error_summary })
+      });
+
+      if (!res.ok) throw new Error('Failed to generate error report.');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'student_import_errors.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      this.showToast('Error report downloaded safely.', 'success');
+    } catch (err) {
+      this.showToast(err.message, 'error');
+    }
+  }
+
+  async executeCSVImport() {
+    if (!this.csvSelectedFile) {
+      this.showToast('No file selected for import.', 'error');
+      return;
+    }
+
+    const confirmBtn = document.getElementById('csvConfirmImportBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Importing Records...';
+
+    const allowPartial = document.getElementById('csvAllowPartial').checked;
+    const token = await this.getAuthToken();
+
+    const formData = new FormData();
+    formData.append('file', this.csvSelectedFile);
+    formData.append('allow_partial', allowPartial);
+
+    try {
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/v1/students/import-csv', {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(this.formatApiError(data, 'Bulk import execution failed'));
+      }
+
+      // Populate Step 3
+      document.getElementById('resImportedCount').textContent = data.imported_count;
+      document.getElementById('resDuplicateCount').textContent = data.duplicate_count;
+      document.getElementById('resFailedCount').textContent = data.failed_count;
+
+      document.getElementById('csvPreviewView').style.display = 'none';
+      document.getElementById('csvResultView').style.display = 'block';
+
+      document.getElementById('csvStepPill2').className = 'step completed';
+      document.getElementById('csvStepPill3').className = 'step active';
+
+      document.getElementById('csvBackBtn').style.display = 'none';
+      confirmBtn.style.display = 'none';
+      document.getElementById('csvDoneBtn').style.display = 'inline-flex';
+
+      this.showToast(`Bulk import completed: ${data.imported_count} students added!`, 'success');
+    } catch (err) {
+      this.showToast(err.message, 'error');
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '✓ Import Valid Records Now';
+    }
+  }
+
+  async closeCSVModalAndRefresh() {
+    this.closeModal('csvImportModal');
+    await this.loadStudents();
+    this.refreshDashboard();
+    this.switchTab('students');
   }
 
   // ==================== MODALS & TOASTS ====================

@@ -3,7 +3,7 @@ Student data validation and serialization schemas.
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import re
 
@@ -133,3 +133,53 @@ class StudentDetailResponse(StudentResponse):
     total_enrollments: int = 0
     attendance_rate: float = 0.0
     outstanding_fee_balance: float = 0.0
+
+
+class StudentCSVRow(BaseModel):
+    row_number: int
+    register_number: str
+    full_name: str
+    email: str
+    phone_number: str
+    department: str
+    academic_year: str
+    semester: int = 1
+    status: str = "active"
+    gpa: float = 0.0
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    guardian_name: Optional[str] = None
+    guardian_phone: Optional[str] = None
+    address: Optional[str] = None
+    is_valid: bool = True
+    is_duplicate: bool = False
+    duplicate_reason: Optional[str] = None
+    errors: List[str] = []
+
+
+class StudentCSVImportPreviewResponse(BaseModel):
+    total_rows: int
+    valid_rows_count: int
+    invalid_rows_count: int
+    duplicate_rows_count: int
+    preview_rows: List[StudentCSVRow]
+    error_summary: List[Dict[str, Any]]
+
+
+class StudentCSVImportResult(BaseModel):
+    total_rows: int
+    imported_count: int
+    failed_count: int
+    duplicate_count: int
+    imported_students: List[StudentResponse] = []
+    errors: List[Dict[str, Any]] = []
+
+
+class StudentCSVErrorReportRequest(BaseModel):
+    errors: List[Dict[str, Any]]
+
+
+StudentCSVRow.model_rebuild()
+StudentCSVImportPreviewResponse.model_rebuild()
+StudentCSVImportResult.model_rebuild()
+StudentCSVErrorReportRequest.model_rebuild()

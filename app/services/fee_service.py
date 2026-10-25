@@ -91,7 +91,7 @@ class FeeService:
         # Prevent overpayment
         if round(data.amount_paid, 2) > round(balance_due, 2):
             raise InvalidPaymentException(
-                f"Payment amount (${data.amount_paid:.2f}) exceeds outstanding balance (${balance_due:.2f})."
+                f"Payment amount (₹{data.amount_paid:.2f}) exceeds outstanding balance (₹{balance_due:.2f})."
             )
 
         ref_number = f"PAY-{uuid.uuid4().hex[:8].upper()}"

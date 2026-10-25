@@ -856,6 +856,50 @@ body {
 .modal-card.modal-lg { max-width: 800px; }
 .modal-card.modal-sm { max-width: 400px; }
 
+/* File Dropzone & CSV Import Styles */
+.file-dropzone {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.file-dropzone:hover, .file-dropzone.drag-over {
+  border-color: var(--primary-blue);
+  background-color: #eff6ff;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.checkbox-container input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-blue);
+  cursor: pointer;
+}
+
+.badge-success {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.badge-warning {
+  background-color: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fef08a;
+}
+.badge-danger {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
 .modal-header {
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-subtle);

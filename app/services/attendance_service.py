@@ -1,5 +1,6 @@
 """
 Attendance Domain Service: Marking, Session Validation, Threshold Shortage Calculations.
+Enforces that attendance can only be recorded for students legitimately enrolled in the course.
 """
 
 from typing import List, Optional, Dict, Any
@@ -8,6 +9,7 @@ from app.repositories.attendance_repo import AttendanceRepository
 from app.repositories.student_repo import StudentRepository
 from app.repositories.course_repo import CourseRepository
 from app.models.attendance import AttendanceRecord
+from app.models.enrollment import Enrollment
 from app.schemas.attendance import AttendanceCreate, BulkAttendanceCreate
 from app.core.exceptions import (
     EntityNotFoundException,
@@ -34,11 +36,33 @@ class AttendanceService:
         if norm_status not in valid_states:
             raise ValidationException(f"Invalid attendance status '{data.status}'. Allowed: {valid_states}")
 
-        # Check student and course exist
-        if not self.student_repo.get(data.student_id):
+        # Check student exists and is active
+        student = self.student_repo.get(data.student_id)
+        if not student:
             raise EntityNotFoundException("Student", data.student_id)
-        if not self.course_repo.get(data.course_id):
+        if student.status != "active":
+            raise ValidationException(
+                f"Cannot record attendance for student #{student.id} with status '{student.status}'. Student must be active."
+            )
+
+        # Check course exists and is active
+        course = self.course_repo.get(data.course_id)
+        if not course:
             raise EntityNotFoundException("Course", data.course_id)
+        if not course.is_active:
+            raise ValidationException(f"Cannot record attendance for inactive course '{course.code}'.")
+
+        # Verify student is legitimately enrolled in the course
+        enrollment = self.db.query(Enrollment).filter(
+            Enrollment.student_id == data.student_id,
+            Enrollment.course_id == data.course_id,
+            Enrollment.status == "enrolled"
+        ).first()
+        if not enrollment:
+            raise ValidationException(
+                f"Student #{data.student_id} is not actively enrolled in Course '{course.code}'. "
+                f"Attendance can only be recorded for students who are currently enrolled."
+            )
 
         # Duplicate check
         existing = self.repo.find_record(
@@ -68,8 +92,33 @@ class AttendanceService:
         bulk_data: BulkAttendanceCreate,
         recorded_by: Optional[str] = None
     ) -> List[AttendanceRecord]:
-        if not self.course_repo.get(bulk_data.course_id):
+        course = self.course_repo.get(bulk_data.course_id)
+        if not course:
             raise EntityNotFoundException("Course", bulk_data.course_id)
+        if not course.is_active:
+            raise ValidationException(f"Cannot record attendance for inactive course '{course.code}'.")
+
+        # Pre-verify that all students in the bulk submission exist and are enrolled
+        for item in bulk_data.records:
+            student = self.student_repo.get(item.student_id)
+            if not student:
+                raise EntityNotFoundException("Student", item.student_id)
+            if student.status != "active":
+                raise ValidationException(
+                    f"Student #{item.student_id} ({student.full_name}) is inactive ({student.status}). "
+                    f"Attendance cannot be recorded."
+                )
+
+            enr = self.db.query(Enrollment).filter(
+                Enrollment.student_id == item.student_id,
+                Enrollment.course_id == bulk_data.course_id,
+                Enrollment.status == "enrolled"
+            ).first()
+            if not enr:
+                raise ValidationException(
+                    f"Student #{item.student_id} ({student.full_name}) is not enrolled in Course '{course.code}'. "
+                    f"Attendance can only be recorded for enrolled students."
+                )
 
         results = []
         for item in bulk_data.records:

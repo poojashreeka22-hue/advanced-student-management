@@ -1,5 +1,6 @@
 """
 Timetable and Scheduling Service with Conflict Detection.
+Enforces real classroom, faculty existence/active status, and time conflict safeguards.
 """
 
 from typing import List, Optional, Dict, Any
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.repositories.timetable_repo import TimetableRepository
 from app.repositories.course_repo import CourseRepository
 from app.models.timetable import Classroom, TimetableSlot
+from app.models.faculty import Faculty
 from app.schemas.timetable import (
     ClassroomCreate,
     TimetableSlotCreate,
@@ -43,18 +45,28 @@ class TimetableService:
         return self.repo.get_all_classrooms()
 
     def create_slot(self, data: TimetableSlotCreate) -> TimetableSlot:
+        # Check course exists and is active
         course = self.course_repo.get(data.course_id)
         if not course:
             raise EntityNotFoundException("Course", data.course_id)
+        if not course.is_active:
+            raise ValidationException(f"Cannot schedule timetable slot for inactive course '{course.code}'.")
 
+        # Check classroom exists
         classroom = self.repo.get_classroom(data.classroom_id)
         if not classroom:
             raise EntityNotFoundException("Classroom", data.classroom_id)
 
-        # Classroom capacity warning check
-        if classroom.capacity < course.max_capacity:
-            # We allow it with a warning or reject if strict
-            pass
+        # Check faculty exists and is active
+        faculty = self.db.query(Faculty).filter(Faculty.id == data.faculty_id).first()
+        if not faculty:
+            raise EntityNotFoundException("Faculty", data.faculty_id)
+        if not faculty.is_active:
+            raise ValidationException(f"Cannot schedule slot for inactive faculty member '{faculty.full_name}'.")
+
+        # Time range validation
+        if data.start_time >= data.end_time:
+            raise ValidationException(f"Start time ({data.start_time}) must be earlier than end time ({data.end_time}).")
 
         # Check time conflicts for classroom and faculty
         conflict = self.repo.check_conflicts(
