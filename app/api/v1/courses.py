@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.services.academic_service import AcademicService
 from app.schemas.course import CourseCreate, CourseUpdate, CourseResponse
+from app.schemas.common import MessageResponse
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
@@ -34,3 +35,11 @@ def get_course(course_id: int, db: Session = Depends(get_db)):
 def update_course(course_id: int, course_in: CourseUpdate, db: Session = Depends(get_db)):
     service = AcademicService(db)
     return service.update_course(course_id, course_in)
+
+
+@router.delete("/{course_id}", response_model=MessageResponse)
+def delete_course(course_id: int, db: Session = Depends(get_db)):
+    """Safely delete course ensuring no dependent prerequisites, enrollments, exams, or timetable slots."""
+    service = AcademicService(db)
+    service.delete_course(course_id)
+    return MessageResponse(message=f"Course #{course_id} successfully deleted.")

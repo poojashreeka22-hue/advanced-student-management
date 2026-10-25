@@ -24,7 +24,10 @@ from app.api.v1.students import (
     get_students,
     get_student,
     update_student,
-    delete_student
+    delete_student,
+    download_csv_template,
+    preview_csv_import,
+    import_students_csv
 )
 from app.api.v1.analytics import get_stats
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
@@ -59,6 +62,9 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Mount legacy/root endpoints for full backward compatibility
 app.add_api_route("/students", create_student, methods=["POST"], response_model=StudentResponse, status_code=status.HTTP_201_CREATED, tags=["Students Legacy"])
 app.add_api_route("/students", get_students, methods=["GET"], response_model=List[StudentResponse], tags=["Students Legacy"])
+app.add_api_route("/students/csv-template", download_csv_template, methods=["GET"], tags=["Students Legacy"])
+app.add_api_route("/students/import-csv/preview", preview_csv_import, methods=["POST"], tags=["Students Legacy"])
+app.add_api_route("/students/import-csv", import_students_csv, methods=["POST"], tags=["Students Legacy"])
 app.add_api_route("/students/{student_id}", get_student, methods=["GET"], response_model=StudentResponse, tags=["Students Legacy"])
 app.add_api_route("/students/{student_id}", update_student, methods=["PUT"], response_model=StudentResponse, tags=["Students Legacy"])
 app.add_api_route("/students/{student_id}", delete_student, methods=["DELETE"], response_model=MessageResponse, tags=["Students Legacy"])

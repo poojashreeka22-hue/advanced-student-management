@@ -10,6 +10,7 @@ class DomainException(Exception):
     def __init__(self, message: str, status_code: int = 400, details: Optional[Any] = None):
         super().__init__(message)
         self.message = message
+        self.detail = message
         self.status_code = status_code
         self.details = details
 
@@ -56,8 +57,8 @@ class ForbiddenException(DomainException):
 
 
 class ValidationException(DomainException):
-    def __init__(self, message: str):
-        super().__init__(message, status_code=400)
+    def __init__(self, message: str, status_code: int = 400, details: Optional[Any] = None):
+        super().__init__(message, status_code=status_code, details=details)
 
 
 class InvalidPaymentException(DomainException):

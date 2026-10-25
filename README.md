@@ -97,63 +97,92 @@ The dashboard features a dark navy (`#0f172a`), deep royal blue (`#1e3a8a`, `#25
 
 ---
 
-## ⚡ Core Domain Rules & Business Logic
+## 🏛️ Real University Business Rules & Dependency-Based Workflows
 
-1. **Admissions & Student Dossier**:
-   - Unique, uppercase-normalized registration numbers.
-   - Case-insensitive email uniqueness and phone digit validation (>= 7 digits).
-   - Duplicate student identity matching across `(first_name, last_name, date_of_birth)`.
-   - Lifecycle status transitions: `applicant` -> `active` -> `suspended` -> `graduated` -> `withdrawn`.
+EduTrack enforces strict real-world academic workflows, eligibility preconditions, record dependencies, and lifecycle safeguards rather than isolated record mutations.
 
-2. **Enrollments & Prerequisite Enforcement**:
-   - Strict course capacity limits rejecting enrollments once `max_capacity` is reached.
-   - Automatic prerequisite verification: students cannot enroll in advanced courses unless the prerequisite was passed with GPA >= 2.0.
-   - Prevention of duplicate enrollments in the same academic semester.
+### 1. Department & Faculty Governance (HOD Hierarchy)
+- **Parent Dependency**: An academic department must exist and be active before faculty can be appointed to it.
+- **HOD Appointment Eligibility**: An appointed Head of Department (HOD) must be an existing, active faculty member who belongs directly to that specific department (`faculty.department_id == department.id`).
+- **Single Chair Rule**: Exactly one active HOD is permitted per department, and a single faculty member cannot simultaneously hold HOD chairs in multiple departments.
+- **Transfer Resolution**: If a faculty member is transferred to another department, their previous HOD assignment is automatically vacated to prevent cross-department governance inconsistencies.
+- **Safe Deletion & Archival**: Deletion of a department is blocked if active faculty members, courses, or students are assigned. Faculty deletion is blocked if the instructor is actively serving as an HOD or has assigned timetable slots.
 
-3. **Attendance & Shortage Warnings**:
-   - Supported states: `present` (1.0), `late` (0.75), `excused` (neutral), `absent` (0.0).
-   - Cancelled sessions are automatically excluded from the evaluated denominator.
-   - Real-time flag for attendance shortage when calculated attendance falls below 75.0%.
+### 2. Curriculum & Prerequisite Graph Rules
+- **Cycle Detection**: Circular prerequisite chains (e.g. $A \rightarrow B \rightarrow A$ or $A \rightarrow B \rightarrow C \rightarrow A$) and self-prerequisites ($A \rightarrow A$) are detected via graph traversal and rejected before insertion.
+- **Active Course Prerequisite**: Only active courses can be linked as prerequisites for subsequent courses.
+- **Safe Curriculum Deletion**: A course cannot be deleted if other courses list it as a prerequisite, if student enrollments exist, or if scheduled examinations/timetable slots depend on it.
 
-4. **Examinations & GPA Calculations**:
-   - Marks validated against examination maximum marks (0 <= marks <= max_marks).
-   - Weighted course score calculations.
-   - Official transcripts with standard GPA point scales (A+=4.0, A=3.7, B+=3.3, B=3.0, C+=2.7, C=2.3, D=2.0, F=0.0).
-   - Grade amendments require mandatory justification reasons recorded in the audit trail.
+### 3. Student Admission & Course Enrollment Rules
+- **Active Status Enforcement**: Only students with status `active` are eligible for course registration. Suspended, graduated, or withdrawn students are rejected.
+- **Single Concurrent Enrollment**: A student cannot enroll in the same course twice while an active enrollment exists.
+- **Completed Course Retake Policy**: Institutional policy prevents retaking courses already completed with a passing grade ($GPA \ge 2.0$).
+- **Prerequisite Completion**: Enrollment requires that all prerequisite courses have been completed with a passing grade ($GPA \ge 2.0$).
+- **Capacity Locking**: Enforces class seat thresholds (`max_capacity`) atomically.
+- **Financial & Enrollment Deletion Protection**: A student record cannot be deleted if active enrollments exist or if unpaid fee invoices remain outstanding.
 
-5. **Fee Ledger & Payments**:
-   - Balances calculated as: `Net Payable = Amount - Waiver; Balance Due = Net Payable - Total Paid`.
-   - Overpayment protection rejecting any payment exceeding the current outstanding balance.
-   - Status updates: `pending` -> `partial` -> `paid`.
+### 4. Attendance & Examination Integrity
+- **Enrollment Dependency**: Attendance sessions and examination marks can only be recorded for students with an active `Enrollment` in that specific course.
+- **Assessment Mark Bounds**: Marks obtained must be non-negative and cannot exceed the examination's configured maximum marks ($0 \le \text{marks} \le \text{max\_marks}$).
+- **Audit Amendments**: Any grade modification requires mandatory textual justification logged directly into the system audit trail.
 
-6. **Scheduling & Collision Detection**:
-   - Classroom collision algorithm preventing double-booking rooms during overlapping intervals.
-   - Faculty conflict check preventing instructors from being scheduled simultaneously.
+### 5. Scheduling & Timetable Governance
+- **Instructor Verification**: Scheduled faculty members must exist, be active, and belong to the course's academic department.
+- **Double-Booking Prevention**: Detects and rejects both room collision (same room at overlapping time) and instructor collision (same faculty scheduled simultaneously in different rooms).
+- **Interval Chronology**: Requires `start_time < end_time` with validated 24-hour time formats.
 
-7. **Security & Defensive Controls**:
-   - PBKDF2-HMAC-SHA256 password hashing with 100,000 iterations and cryptographic salts.
-   - PyJWT token authentication and Role-Based Access Control (RBAC).
-   - In-memory rate limiting on authentication login routes.
-   - CSV formula injection protection escaping leading `=`, `+`, `-`, `@`, `\t`, and `\r`.
+### 6. Financial Ledger & Overpayment Safeguards
+- **Balance Calculation**: Invoices calculate net balance accounting for institutional fee waivers.
+- **Overpayment Rejection**: Payments exceeding the current outstanding invoice balance are strictly rejected.
 
 ---
 
-## 🧪 Comprehensive Automated Test Suite (1,140+ Tests)
+## 📋 Dependency Matrix
 
-The repository includes a comprehensive automated test suite executed via `pytest`:
+| Prerequisite Record | Required Precondition | Failure / Rejection Outcome | Verifying Test Case |
+| :--- | :--- | :--- | :--- |
+| **Department** | Must exist and be active before faculty assignment | HTTP 404 / 400 (`Department not found` / `inactive`) | `test_cannot_create_faculty_for_nonexistent_department` |
+| **Faculty Member** | Must exist, be active, and belong to department to be HOD | HTTP 400 (`Faculty belongs to department #X, not #Y`) | `test_cannot_assign_hod_from_different_department` |
+| **Faculty Member** | Status must be active (not terminated/inactive) for HOD | HTTP 400 (`status is inactive or terminated`) | `test_cannot_assign_inactive_faculty_as_hod` |
+| **Department Chair** | Department can only have 1 active HOD; 1 chair per person | HTTP 400 (`already serving as Head of Department`) | `test_cannot_assign_faculty_as_hod_of_multiple_departments` |
+| **Faculty Transfer** | Transferring faculty vacates old department HOD chair | Old department HOD becomes vacant (`null`) | `test_faculty_transfer_vacates_old_department_hod` |
+| **Department Deletion** | No dependent faculty, courses, or students may exist | HTTP 400 (`Contains associated faculty/course/student`) | `test_cannot_delete_department_with_faculty` |
+| **Faculty Deletion** | Cannot delete faculty actively serving as HOD or scheduled | HTTP 400 (`Currently serving as Head of Department`) | `test_cannot_delete_faculty_serving_as_hod` |
+| **Course Prerequisite** | A course cannot have itself as a prerequisite ($A \rightarrow A$) | HTTP 400 (`A course cannot have itself as a prerequisite`) | `test_cannot_set_course_self_prerequisite` |
+| **Course Prerequisite** | Circular prerequisite loops ($A \rightarrow B \rightarrow A$) forbidden | HTTP 400 (`Circular prerequisite dependency detected`) | `test_cannot_set_direct_circular_prerequisite` |
+| **Course Deletion** | Cannot delete course if prerequisite for other courses | HTTP 400 (`It is a prerequisite for: ...`) | `test_cannot_delete_course_with_dependent_courses` |
+| **Course Enrollment** | Student status must be `active` (not suspended/graduated) | HTTP 400 (`Cannot enroll student with status 'suspended'`) | `test_cannot_enroll_inactive_student` |
+| **Course Enrollment** | Student cannot be concurrently enrolled in same course | HTTP 400 (`already actively enrolled in course`) | `test_cannot_enroll_twice_in_same_course` |
+| **Course Enrollment** | Prerequisite course must be completed with $GPA \ge 2.0$ | HTTP 400 (`Prerequisite CS100 not satisfied`) | `test_prerequisite_grade_thresholds` |
+| **Course Enrollment** | Class capacity cannot exceed `max_capacity` | HTTP 400 (`Capacity exceeded for course`) | `test_capacity_limits` |
+| **Student Deletion** | Cannot delete student with active enrollments | HTTP 400 (`Student has active course enrollment(s)`) | `test_cannot_delete_student_with_active_enrollments` |
+| **Student Deletion** | Cannot delete student with unpaid fee invoices | HTTP 400 (`Student has outstanding/unpaid fee invoice(s)`) | `test_student_service_delete_safeguards` |
+| **Attendance Record** | Student must have an active `Enrollment` in the course | HTTP 400 (`Student is not actively enrolled in Course`) | `test_cannot_record_attendance_for_non_enrolled_student` |
+| **Attendance Record** | Session date and slot number must be unique per student | HTTP 400 (`AttendanceRecord already exists for session`) | `test_duplicate_attendance_session_prevention` |
+| **Examination Grade** | Student must be enrolled in the examination's course | HTTP 400 (`Student is not enrolled in the course for Exam`) | `test_cannot_record_grade_for_non_enrolled_student` |
+| **Examination Grade** | Marks obtained must satisfy $0.0 \le \text{marks} \le \text{max\_marks}$ | HTTP 400 (`Marks cannot exceed exam maximum marks`) | `test_cannot_record_grade_exceeding_max_marks` |
+| **Timetable Slot** | Faculty must exist, be active, and match course department | HTTP 400 / 404 (`inactive faculty member` / `not found`) | `test_cannot_schedule_slot_for_inactive_faculty` |
+| **Timetable Slot** | Classroom and faculty cannot be double-booked | HTTP 409 (`Schedule conflict detected for room/faculty`) | `test_classroom_conflict_detection` |
+| **Fee Invoice Payment**| Payment amount cannot exceed outstanding balance | HTTP 400 (`Payment amount exceeds outstanding balance`) | `test_cannot_overpay_fee_invoice` |
+
+---
+
+## 🧪 Comprehensive Automated Test Suite (1,213 Tests)
+
+The repository includes an extensive automated test suite executed via `pytest`:
 
 ```bash
 # 1. Collect all test items
 pytest --collect-only -q
-# Output: 1149 tests collected
+# Output: 1213 tests collected
 
 # 2. Run complete test suite
 pytest -q
-# Output: 1149 passed, 1 warning in 28s
+# Output: 1213 passed, 1 warning in 39s
 
 # 3. Generate detailed code coverage report
 pytest -q --cov=app --cov-report=term-missing
-# Output: 87% Total Application Code Coverage
+# Output: 88% Total Application Code Coverage
 ```
 
 ### Test Distribution Across Categories
@@ -173,9 +202,12 @@ pytest -q --cov=app --cov-report=term-missing
 | **API Validation Errors & HTTP Codes** | 50 | `tests/api/test_api_validation_errors.py` |
 | **Security & Negative Authorization** | 50 | `tests/security/test_security_negative.py` |
 | **End-to-End Academic Workflows** | 7 | `tests/api/test_full_academic_workflows.py` |
+| **Real University Workflow & Dependency Rules** | **21** | `tests/api/test_university_workflows.py` |
+| **Bulk CSV Import Services & Validation** | 20 | `tests/unit/test_student_csv_service.py` |
+| **Bulk CSV Import Endpoints & RBAC** | 23 | `tests/api/test_student_csv_import.py` |
 | **Test Manifest & Planning Audit** | 13 | `tests/test_manifest.py` |
 | **Legacy Compatibility Tests** | 19 | `tests/test_main.py` |
-| **TOTAL** | **1,149** | **100% Passing** |
+| **TOTAL** | **1,213** | **100% Passing** |
 
 ---
 
@@ -228,6 +260,88 @@ pytest -s tests/performance/test_performance_benchmarks.py
 - Full-text search across 1,000 records: `21.42 ms`
 - Deep pagination (offset 800): `10.51 ms`
 - Department analytics rollup: `5.88 ms`
+
+---
+
+## 📂 Bulk Student Import from CSV
+
+The platform features an enterprise-grade **Bulk Student Import from CSV** engine, providing administrators with automated roster intake, validation previews, intra-file and database duplicate detection, atomic database transactions, and formula-injection safe error reporting.
+
+### 1. Key Capabilities
+
+- **Strict Schema Validation**: Validates required headers, email RFC formats, exactly 10-digit phone numbers, semester ranges ($1..8$), and GPA bounds ($0.00..4.00$).
+- **Intra-File & Database Duplicate Detection**: Detects and highlights collisions both within the uploaded file (e.g. repeated student numbers or emails) and against existing database records.
+- **Pre-Import Inspection (Dry Run)**: Allows administrators to preview valid, duplicate, and invalid records with row-by-row error messages before committing any database writes.
+- **Flexible Transactional Import**:
+  - `allow_partial=True` (default): Atomically inserts all valid, non-duplicate records while skipping and reporting invalid rows.
+  - `allow_partial=False`: Enforces an all-or-nothing policy; if any row fails validation or duplicate check, the entire import is rolled back.
+- **Formula Injection Defense**: All downloadable error reports sanitize cells starting with spreadsheet command prefixes (`=`, `+`, `-`, `@`, `\t`, `\r`) with leading single quotes.
+- **Audit Logging**: Each bulk import records an audit event logging the total records imported and the responsible administrator, strictly omitting passwords, tokens, or sensitive student PII.
+- **RBAC Protection**: Administrative import endpoints require `Role.ADMIN`, strictly forbidding unauthorized or unauthenticated requests.
+
+### 2. CSV Column Specification
+
+| Column | Type | Required? | Constraints & Format |
+| :--- | :--- | :--- | :--- |
+| `register_number` | String | **Yes** | 2–50 chars, unique, normalized uppercase (e.g., `CS2026101`) |
+| `full_name` | String | **Yes** | 2–100 chars, legal full name |
+| `email` | String | **Yes** | Valid RFC email format, unique across students |
+| `phone_number` | String | **Yes** | Exactly 10 numeric digits (e.g., `9876543210`) |
+| `department` | String | **Yes** | 2–100 chars, academic department name |
+| `academic_year` | String | **Yes** | 2–50 chars (e.g., `1st Year`, `2026-2027`) |
+| `semester` | Integer | No | Integer from 1 to 8 (defaults to `1`) |
+| `status` | String | No | `applicant`, `active`, `suspended`, `graduated`, `withdrawn` (defaults to `active`) |
+| `gpa` | Float | No | Decimal from `0.00` to `4.00` (defaults to `0.00`) |
+| `date_of_birth` | String | No | ISO format date (`YYYY-MM-DD`) |
+| `gender` | String | No | Gender identity (`Female`, `Male`, `Other`) |
+| `guardian_name` | String | No | Emergency contact / guardian legal name |
+| `guardian_phone`| String | No | Contact phone number for guardian |
+| `address` | String | No | Residential mailing address |
+
+### 3. API Endpoints
+
+- **Download CSV Template**:
+  ```http
+  GET /api/v1/students/csv-template
+  ```
+  Returns `student_import_template.csv` with required headers and fictional example rows.
+
+- **Pre-Import Inspection (Preview)**:
+  ```http
+  POST /api/v1/students/import-csv/preview
+  Authorization: Bearer <ADMIN_TOKEN>
+  Content-Type: multipart/form-data
+  ```
+
+- **Execute Bulk Import**:
+  ```http
+  POST /api/v1/students/import-csv
+  Authorization: Bearer <ADMIN_TOKEN>
+  Content-Type: multipart/form-data
+  FormData:
+    file: <students.csv>
+    allow_partial: true
+  ```
+
+- **Download Sanitized Error Report**:
+  ```http
+  POST /api/v1/students/import-csv/error-report
+  Authorization: Bearer <ADMIN_TOKEN>
+  Content-Type: application/json
+  Body:
+    { "errors": [ ... ] }
+  ```
+
+### 4. Fictional Example CSV Data
+
+```csv
+register_number,full_name,email,phone_number,department,academic_year,semester,status,gpa,date_of_birth,gender
+CS2026101,Amina Chen,amina.chen@university.edu,9876543210,Computer Science,1st Year,1,active,3.85,2005-04-12,Female
+IT2026102,Carlos Ramirez,carlos.ramirez@university.edu,9876543211,Information Technology,2nd Year,3,active,3.70,2004-09-23,Male
+ECE2026103,Fatima Al-Mansoor,fatima.m@university.edu,9876543212,Electronics & Communication,3rd Year,5,active,3.92,2003-11-18,Female
+MECH2026104,Liam O'Connor,liam.oconnor@university.edu,9876543213,Mechanical Engineering,1st Year,1,active,3.60,2005-08-30,Male
+CIVIL2026105,Priya Patel,priya.patel@university.edu,9876543214,Civil Engineering,4th Year,7,active,3.98,2002-06-15,Female
+```
 
 ---
 

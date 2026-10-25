@@ -51,6 +51,21 @@ dup_att_cases = [(f"2026-10-{(i % 28) + 1:02d}", (i % 4) + 1) for i in range(1, 
 
 @pytest.mark.parametrize("session_date,slot_number", dup_att_cases, ids=[f"dup_att_{i}" for i in range(40)])
 def test_duplicate_attendance_session_prevention(db_session, sample_student, sample_course, session_date, slot_number):
+    from app.models.enrollment import Enrollment
+    existing_enr = db_session.query(Enrollment).filter(
+        Enrollment.student_id == sample_student.id,
+        Enrollment.course_id == sample_course.id
+    ).first()
+    if not existing_enr:
+        db_session.add(Enrollment(
+            student_id=sample_student.id,
+            course_id=sample_course.id,
+            academic_year="2026-2027",
+            semester=1,
+            status="enrolled"
+        ))
+        db_session.commit()
+
     att_service = AttendanceService(db_session)
 
     # First attendance recording succeeds

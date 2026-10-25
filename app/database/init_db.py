@@ -3,7 +3,10 @@ Database initialization and default seeding.
 """
 
 from app.database.session import engine, SessionLocal
-from app.models import Base, User, Department, Classroom
+from app.database.base import Base
+from app.models.user import User
+from app.models.department import Department
+from app.models.timetable import Classroom
 from app.core.security import hash_password
 from app.core.logging import logger
 
@@ -11,6 +14,18 @@ from app.core.logging import logger
 def init_db() -> None:
     """Create all database tables and seed baseline admin user and baseline departments if empty."""
     Base.metadata.create_all(bind=engine)
+
+    # Ensure schema migrations for existing databases
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            res = conn.execute(text("PRAGMA table_info(departments)")).fetchall()
+            cols = [r[1] for r in res]
+            if cols and "hod_faculty_id" not in cols:
+                conn.execute(text("ALTER TABLE departments ADD COLUMN hod_faculty_id INTEGER REFERENCES faculty(id)"))
+                conn.commit()
+    except Exception as e:
+        logger.warning(f"Schema migration warning: {e}")
 
     db = SessionLocal()
     try:

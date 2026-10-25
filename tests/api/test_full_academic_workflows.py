@@ -140,6 +140,15 @@ def test_course_crud_and_enrollment_workflow_api(client: TestClient, sample_depa
 
 def test_examination_grades_and_transcript_api(client: TestClient, sample_student, sample_course):
     """Test exam scheduling, marks entry, amendment, and academic transcript."""
+    # Ensure student is enrolled in the course prior to examination grading
+    enr_res = client.post("/api/v1/enrollments", json={
+        "student_id": sample_student.id,
+        "course_id": sample_course.id,
+        "academic_year": "2026-2027",
+        "semester": 1
+    })
+    assert enr_res.status_code == 201
+
     # 1. Schedule Examination
     exam_res = client.post("/api/v1/examinations", json={
         "course_id": sample_course.id,
@@ -228,10 +237,21 @@ def test_timetable_and_classrooms_api(client: TestClient, sample_course):
     assert rooms_list.status_code == 200
     assert len(rooms_list.json()) >= 1
 
+    # Create faculty member for course department
+    fac_res = client.post("/api/v1/faculty", json={
+        "employee_id": "EMP_TT_WORKFLOW",
+        "full_name": "Dr. Richard Feynman",
+        "email": "feynman@univ.edu",
+        "department_id": sample_course.department_id,
+        "designation": "Professor"
+    })
+    assert fac_res.status_code == 201
+    faculty_id = fac_res.json()["id"]
+
     # Schedule slot
     slot_res = client.post("/api/v1/timetable/slots", json={
         "course_id": sample_course.id,
-        "faculty_id": 1,
+        "faculty_id": faculty_id,
         "classroom_id": room_id,
         "day_of_week": "Wednesday",
         "start_time": "14:00",

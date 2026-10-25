@@ -10,6 +10,8 @@ from app.repositories.attendance_repo import AttendanceRepository
 from app.repositories.enrollment_repo import EnrollmentRepository
 from app.repositories.fee_repo import FeeRepository
 from app.models.student import Student
+from app.models.enrollment import Enrollment
+from app.models.fee import FeeInvoice
 from app.schemas.student import StudentCreate, StudentUpdate
 from app.core.exceptions import (
     DuplicateEntityException,
@@ -169,6 +171,29 @@ class StudentService:
 
     def delete_student(self, student_id: int, current_username: Optional[str] = None) -> None:
         student = self.get_student(student_id)
+
+        # Safeguard: Prevent deleting student with active enrollments
+        enr_count = self.db.query(Enrollment).filter(
+            Enrollment.student_id == student_id,
+            Enrollment.status == "enrolled"
+        ).count()
+        if enr_count > 0:
+            raise ValidationException(
+                f"Cannot delete student '{student.full_name}' ({student.register_number}). "
+                f"Student has {enr_count} active course enrollment(s). Withdraw or drop them first."
+            )
+
+        # Safeguard: Prevent deleting student with outstanding fee invoices
+        unpaid_invoices = self.db.query(FeeInvoice).filter(
+            FeeInvoice.student_id == student_id,
+            FeeInvoice.status.in_(["pending", "partial", "overdue"])
+        ).count()
+        if unpaid_invoices > 0:
+            raise ValidationException(
+                f"Cannot delete student '{student.full_name}' ({student.register_number}). "
+                f"Student has {unpaid_invoices} outstanding/unpaid fee invoice(s). Settle financial ledger first."
+            )
+
         reg = student.register_number
         name = student.full_name
         self.repo.delete(student)

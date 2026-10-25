@@ -22,7 +22,7 @@ class Faculty(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    department_rel = relationship("Department", back_populates="faculty_members")
+    department_rel = relationship("Department", back_populates="faculty_members", foreign_keys=[department_id])
 
     def __repr__(self) -> str:
         return f"<Faculty(id={self.id}, employee_id='{self.employee_id}', name='{self.full_name}')>"

@@ -11,6 +11,7 @@ from app.repositories.course_repo import CourseRepository
 from app.repositories.enrollment_repo import EnrollmentRepository
 from app.models.examination import Examination
 from app.models.grade import GradeEntry
+from app.models.enrollment import Enrollment
 from app.schemas.examination import ExaminationCreate, ExaminationUpdate
 from app.schemas.grade import GradeEntryCreate, GradeEntryUpdate, AcademicTranscript, AcademicTranscriptItem
 from app.core.exceptions import (
@@ -74,10 +75,27 @@ class GradeService:
         if not student:
             raise EntityNotFoundException("Student", data.student_id)
 
+        # Validate student is active
+        if student.status != "active":
+            raise ValidationException(
+                f"Cannot record grades for student #{student.id} with status '{student.status}'. Student must be active."
+            )
+
         # Validate marks against examination maximum marks
         if data.marks_obtained < 0.0 or data.marks_obtained > exam.max_marks:
             raise ValidationException(
                 f"Marks obtained ({data.marks_obtained}) cannot be negative or exceed exam maximum marks ({exam.max_marks})"
+            )
+
+        # Verify student is enrolled in the course associated with this examination
+        enrollment = self.db.query(Enrollment).filter(
+            Enrollment.student_id == data.student_id,
+            Enrollment.course_id == exam.course_id
+        ).first()
+        if not enrollment or enrollment.status not in ("enrolled", "completed"):
+            raise ValidationException(
+                f"Student #{data.student_id} is not enrolled in the course for Examination '{exam.title}'. "
+                f"Grades can only be recorded for enrolled students."
             )
 
         # Duplicate check
